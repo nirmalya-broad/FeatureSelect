@@ -36,6 +36,9 @@ suscFac <- factor(unlist(Susc_Res))
 xdata <- data.frame(mydata4)
 ydata <- suscFac
 
+
+library(caret)
+
 fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
 newRF <- rfFuncs
 newRF$summary <- fiveStats
@@ -44,7 +47,7 @@ index <- createMultiFolds(ydata, k = 5, times = 5)
 varSeq <- seq(1, length(xdata)-1, by = 2)
 
 ctrl <- rfeControl(method = "repeatedcv", number = 5, repeats = 5, 
-  functions = newRF, index = index)
+  verbose = TRUE, functions = newRF, index = index)
  # verbose = TRUE, functions = newRF, index = index)
 
 rfRFE <- rfe(x = xdata, y = ydata, sizes = varSeq, metric = "ROC", 
@@ -57,7 +60,9 @@ rfRFE <- rfe(x = xdata, y = ydata, sizes = varSeq, metric = "ROC",
 
 # Print the 
 
-ctrl <- rfeControl(method = "repeatedcv", number = 5, repeats = 5, functions = svmFuncs, index = index)
+svmFuncs <- caretFuncs
+
+ctrl <- rfeControl(method = "repeatedcv", number = 5, repeats = 5, verbose = TRUE, functions = svmFuncs, index = index)
 
 svmRFE <- rfe(x = xdata, y = ydata, sizes = varSeq,
   metric = "ROC", rfeControl = ctrl, ## Now options to train()

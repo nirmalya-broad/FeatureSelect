@@ -50,6 +50,8 @@ lEst <- "ReliefFexpRank"
 all_index <- 1:length(suscFac)
 tpred <- list()
 true_test_c <- NULL
+all_best_genes <- c()
+
 for (j in 1:5) {
 
 	test_index <- c(S_parts[[j]], R_parts[[j]])
@@ -69,7 +71,9 @@ for (j in 1:5) {
 	sortedFeatures <- sort(estReliefF, decreasing = TRUE)
 
     best_five <- sortedFeatures[1:5]
+	best_ten <- sortedFeatures[1:10]
 	print(best_five)
+	all_best_genes <- c(all_best_genes, names(best_five))
 
 	l1 <- 1
 	for (k in 3:5) {
@@ -95,11 +99,26 @@ for (j in 1:5) {
     }
 }
 
+
+#library(ROCR)
+
+#for (k in 1:3) {
+#	xval <- tpred[[k]]$probabilities
+#	yval <- true_test_c 
+#	lpred <- prediction()
+#}
+
+
 mEvals <- list()
 for (k in 1:3) {
 	mEval <- modelEval(modelRF, true_test_c, tpred[[k]]$class, tpred[[k]]$prob)
 	mEvals[[k]] <- mEval
+
+	print(mEvals[[k]]$accuracy)
 }
+
+all_best_genes2 <- sort(all_best_genes, decreasing = FALSE)
+print(table(all_best_genes2))
 
 
 #estReliefF <- attrEval(suscFac ~ ., mydata5, estimator=lEst, ReliefIterations=30)

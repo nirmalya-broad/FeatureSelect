@@ -5,6 +5,8 @@ library(ggplot2)
 library(RColorBrewer)
 
 datadir <- '/home/nirmalya/research/DataDx/'
+outDir <- paste0(datadir, '/KpGent1_Relief/')
+dir.create(outDir, showWarnings = FALSE)
 datafile <- paste0(datadir, '/forNirmalya_KpGent1_norm.txt')
 micfile <- paste0(datadir, '/forNirmalya_KpGent1_MICs.txt')
 
@@ -12,6 +14,9 @@ expData1 <- read.table(datafile, sep = '\t', header = TRUE, row.names = 1, strin
 
 MICData <- read.table(micfile, sep = '\t', header = TRUE, row.names = 1, stringsAsFactors = FALSE)
 
+MIC1 <-as.matrix(MICData)
+MIC2 <- MIC1[order(MIC1),]
+MIC_Ordered <- paste0(names(MIC2), "_gent")
 
 expData <- data.frame(t(expData1))
 
@@ -41,52 +46,9 @@ xdata <- xdata1[names(ydata), ]
 ##---------Common part, copied from other file ------------------##
 
 
-fiveStats <- function(...) c(twoClassSummary(...), defaultSummary(...))
-newRF <- rfFuncs
-newRF$summary <- fiveStats
-
-
-
-
-varSeq <- seq(1, length(xdata)-1, by = 2)
-
 all_index <- 1:length(ydata)
 index <- createMultiFolds(all_index, k = 5, times = 5)
 
-ctrl <- rfeControl(method = "repeatedcv", saveDetails = TRUE, number = 5, repeats = 5, returnResamp = "all",  verbose = TRUE, functions = newRF, index = index)
- # verbose = TRUE, functions = newRF, index = index)
-
-rfRFE <- rfe(x = xdata, y = ydata, sizes = varSeq, metric = "ROC",
-   rfeControl = ctrl,
-    ## now pass options to randomForest()
-    ntree = 1000)
-
-prd <- predict(rfRFE, testx)
-accu <- sum(prd[,"pred"] == testy)/length(testy)
-#set.seed(100)
-cat ("J: ", j , ", accu:  ", accu , "\n")
-
-}
-
-# Print the 
-
-svmFuncs <- caretFuncs
-
-ctrl <- rfeControl(method = "repeatedcv", number = 5, repeats = 5, verbose = TRUE, functions = svmFuncs, index = index)
-
-svmRFE <- rfe(x = xdata, y = ydata, sizes = varSeq,
-  metric = "ROC", rfeControl = ctrl, ## Now options to train()
-  method = "svmRadial", tuneLength = 12,
-  preProc = c("center", "scale"),
-  ## Below specifies the inner resampling process
-  trControl = trainControl(method = "cv",
-  verboseIter = FALSE, classProbs = TRUE))
-
-
-
-#library(caret)
-
-#set.seed(100)
 #index <- createMultiFolds(suscFac, k = 5, times = 5)
 
 suscFac <- ydata
@@ -128,6 +90,7 @@ for (j in 1:length(index)) {
 R_pos <- which(ydata %in% 'R')
 S_pos <- which(ydata %in% 'S')
 
+setwd(outDir)
 for (k in 2:10) {
 
     # top genes for this iteration
@@ -190,7 +153,8 @@ for (k in 2:10) {
 	
     #col<-c("grey","green", "white","blue","black", "red")
 	#image(1:dim(lmat)[2],1:dim(lmat)[1], t(lmat), col= col)
-    lmat2 <- melt(lmat)
+    lmat1 <- lmat[, MIC_Ordered]
+	lmat2 <- melt(lmat1)
 
     myColors <- brewer.pal(length(levels(factor(lmat2[,3]))),"Dark2")
     names(myColors) <- levels(lmat2$values)
@@ -202,13 +166,5 @@ for (k in 2:10) {
 	ggsave(file_name)
 
 }
-
-
-cat("Top ten genes: ", sgenes[1:10], "\n")
-
-
-
-
-
 
 
