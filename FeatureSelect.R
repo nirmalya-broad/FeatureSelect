@@ -1,3 +1,10 @@
+# Hopefully we shall required not more than three seeds
+# May be one seed during feature selection and 
+# another seed during validation0
+seed1 <- 100
+seed2 <- 200
+seed3 <- 300
+
 # Partition the data
 
 doPartition <- function (alldata, type) {
@@ -51,3 +58,32 @@ doPartitionExtreme <- function(alldata) {
     return (alldata2)
 
 }
+
+
+getFeaturesReliefF <- function(alldata) {
+
+}
+
+getFeaturesRfRFE <- function (alldata, ltimes = 5, featureCount = 5) {
+
+	library(caret)
+	# create the index for five fold data with five times repeat
+	set.seed(seed1)
+	trainC <- alldata$trainC
+	ydata <- trainC
+	cdata <- alldata$cdata
+	xdata1 <- cdata[, names(trainC)]
+	xdata <- t(xdata1)
+	
+	index <- createMultiFolds(ydata, k = 5, times = ltimes)
+
+	newRF <- rfFuncs
+	ctrl <- rfeControl(method = "repeatedcv", saveDetails = TRUE, number = 5, repeats = 5, returnResamp = "all",  functions = newRF, index = index)
+	varSeq <- seq(5, dim(xdata)[2] -1, by = 2)
+	rfRFE <- rfe(x = xdata, y = ydata, sizes = varSeq, rfeControl = ctrl)
+	features <- rfRFE$optVariables[1:featureCount]
+	alldata2 <- c(alldata, list(rfRFE = rfRFE, features = features))
+	return (alldata2) 
+}
+
+
