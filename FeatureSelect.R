@@ -140,7 +140,7 @@ validation <- function (alldata) {
 	ctrlT <- trainControl(method = "repeatedcv", number = 5, repeats = 5, 
 		returnResamp = "all", savePredictions = "all", classProbs = TRUE, 
 		index = indexT)	
-		features <- alldata$features
+	features <- alldata$features
 	cdata <- alldata$cdata
 	xdata1 <- cdata[, names(testC)]
     xdata2 <- t(xdata1)
@@ -174,6 +174,11 @@ plotResults <- function(alldata, plotname, ltitle) {
 	llevels <- paste0(names(MICTest), "_", MICTest)
 	pred6$lgroups <- factor(pred6$lgroups, levels = llevels)
 
+	fMap <- alldata$fMap
+	features <- alldata$features
+	fVals1 <- fMap[features]
+	fVals <- paste(as.character(fVals1), collapse = "\n")
+	
 	results1 <- ddply(pred6, .(lgroups), 
 		function(x) {
 			tableInfo = table(x$pred)
@@ -193,9 +198,9 @@ plotResults <- function(alldata, plotname, ltitle) {
 	lcols <- results1$V1
 	names(lcols) <- results1$lgroups
 	accuracy <- alldata$accuracy
-	ltitle1 <- paste0(ltitle, ", Accuracy = ", accuracy)
+	ltitle1 <- paste0(ltitle, ", Accuracy = ", accuracy, "\n", fVals)
 	Palette1 <- c('red','green','blue')
-	plt <- ggplot(pred6, aes(x = lgroups, y = maxPred)) + geom_boxplot(aes(fill=lcols[lgroups])) + scale_colour_manual(values=Palette1) + xlab("Sample_MIC") + ylab("Probability of calling") +  theme(axis.text.x = element_text(size=10,angle= 45)) + ggtitle(ltitle1)
+plt <- ggplot(pred6, aes(x = lgroups, y = maxPred)) + geom_boxplot(aes(fill=lcols[lgroups])) + scale_colour_manual(values=Palette1) + xlab("Sample_MIC") + ylab("Probability of calling") +  theme(axis.text.x = element_text(size=10,angle= 45)) + ggtitle(ltitle1)
 	ggsave(plotname)
 
 }
@@ -206,6 +211,7 @@ mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod) {
 	alldata2 <- doPartition(alldata, partitionMethod)
 	alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod)
 	alldata4 <- validation(alldata3)
+	
 	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
 	plotname <- paste0(dataname, "_", partitionMethod, "_", featureSelectionMethod, ".pdf")
 	ltitle <- paste0(dataname, ", ", partitionMethod, ", ", featureSelectionMethod)
@@ -217,21 +223,29 @@ library(caret)
 library(ggplot2)
 library(CORElearn)
 library(plyr)
+library(rentrez)
 
-datadir <- '/home/unix/nirmalya/Desktop/DataDx2'
+datadir <- '/home/nirmalya/research/DataDx'
 setwd(datadir)
 
-dataFile <- 'KpCip.RData'
+dataFile <- 'AcbMero.RData'
 
 mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
 mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
 mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
 mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
 
-dataFile <- 'KpGent.RData'
+#dataFile <- 'KpCip.RData'
 
-mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
-mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
-mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
-mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
+#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
+#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
+#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
+#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
+
+#dataFile <- 'KpGent.RData'
+
+#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
+#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
+#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
+#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
 
