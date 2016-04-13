@@ -70,13 +70,22 @@ doFeatureSelection <- function(alldata, fsMethod) {
 	}
 }
 
+getCVCount <- function(classLabels) {
+
+	standardCVCount <- 5
+	smallClassCount <- min(table(classLabels))
+	finalCVCount <- min(standardCVCount, smallClassCount)
+	return (finalCVCount)
+}
+
 getFeaturesReliefF <- function(alldata, ltimes = 5, featureCount = 5, lEst = "ReliefFexpRank") {
 
 	trainC <- alldata$trainC
     cdata <- alldata$cdata
 
 	set.seed(seed1)
-    index <- createMultiFolds(trainC, k = 5, times = ltimes)
+	finalCVCount <- getCVCount(trainC)
+    index <- createMultiFolds(trainC, k = finalCVCount, times = ltimes)
 
 	all_list <- c()
 	for (j in 1:length(index)) {
@@ -100,7 +109,6 @@ getFeaturesReliefF <- function(alldata, ltimes = 5, featureCount = 5, lEst = "Re
 	features <- final_genes[1:featureCount]
 	alldata2 <- c(alldata, list(features = features))	
 
-
 }
 
 getFeaturesRfRFE <- function (alldata, ltimes = 5, featureCount = 5) {
@@ -113,7 +121,8 @@ getFeaturesRfRFE <- function (alldata, ltimes = 5, featureCount = 5) {
 	xdata <- t(xdata1)
 	
 	set.seed(seed1)
-	index <- createMultiFolds(ydata, k = 5, times = ltimes)
+	finalCVCount <- getCVCount(trainC)
+	index <- createMultiFolds(ydata, k = finalCVCount, times = ltimes)
 
 	newRF <- rfFuncs
 	ctrl <- rfeControl(method = "repeatedcv", saveDetails = TRUE, number = 5, 
@@ -135,7 +144,8 @@ validation <- function (alldata) {
 	testC <-  alldata$testC
 
 	set.seed(seed2)
-	indexT <- createMultiFolds(testC, k = 5, times = 5)
+	finalCVCount <- getCVCount(testC)
+	indexT <- createMultiFolds(testC, k = finalCVCount, times = 5)
 
 	ctrlT <- trainControl(method = "repeatedcv", number = 5, repeats = 5, 
 		returnResamp = "all", savePredictions = "all", classProbs = TRUE, 
@@ -151,6 +161,106 @@ validation <- function (alldata) {
 	accuracy <- lresults[lresults$mtry == bestMtry, "Accuracy"]	
 	alldata2 <- c(alldata, list(modT = modT, accuracy = accuracy))
 	return (alldata2)
+
+}
+
+plotCombinedMetric <- function(alldata, plotname, ltitle) {
+
+	modT <- alldata$modT
+	testSample <- rownames(modT$trainingData)
+    predSample <-  testSample[modT$pred$rowIndex]
+    MIC <- alldata$MIC
+	#MICMid <- alldata$MICMid
+	MICMid <- 2
+    pred1 <- modT$pred
+    pred2  <- data.frame(predSample, pred1)
+	pred2  <- data.frame(predSample, pred1)	
+	predMIC <- MIC[predSample]
+	pred3  <-  data.frame(pred2, predMIC)
+
+	# Now get the error with respect to observed; 
+	lrnames <- rownames(pred3)
+	predLst <- lapply(lrnames, 
+		function(x, pred2) {
+			lobs <- as.character(pred2[x,"obs"])
+			pred2[x, lobs]
+		}, pred3
+	)
+	
+	predObs <- unlist(predLst)
+	predErr <- 1 - predObs
+	pred4 <- data.frame(pred3, predErr)
+	lmtry <- modT$bestTune$mtry
+    pred5 <- pred4[pred4$mtry == lmtry, ]
+    lgroups <- paste0(pred5$predSample, "_", pred5$predMIC)
+    pred6 <- data.frame(pred5, lgroups)
+    MICTest <- MIC[names(alldata$testC)]
+    llevels <- paste0(names(MICTest), "_", MICTest)
+    pred6$lgroups <- factor(pred6$lgroups, levels = llevels)
+
+	# We take the logarithm
+	# Distance compared to the middle point 2 in exponential
+	
+	exDistToMid <- MICMid/pred6$predMIC
+	logDistToMid <- log2(exDistToMid)
+	absLogDistToMid <- abs(logDistToMid)
+	# one is add to assign nonzero weights to the points with MIC equals to 1.
+	corrDist <- 1 + absLogDistToMid
+
+	pred7 <- data.frame(pred6, corrDist)
+
+	# Add one column for the facet_grid
+	facet_var <- ifelse (pred7$predMIC <=2 , c('Sus'), c('Res'))
+	pred7$facet_var <- factor(facet_var, levels = c('Sus', 'Res'))
+
+	finalMetricAll <- pred7$predErr %*% pred7$corrDist
+	lcount <- length(pred7$predErr)
+	finalMetricAvg <- finalMetricAll / lcount
+	finalMetricStr = sprintf("%0.4f", finalMetricAvg)
+
+	fMap <- alldata$fMap
+    features <- alldata$features
+    fVals1 <- fMap[features]
+    fVals <- paste(as.character(fVals1), collapse = "\n")
+
+	resultsObs <- ddply(pred7, .(lgroups),
+        function(x) {
+            tableInfo = table(x$obs)
+            countS = tableInfo["S"]
+            countR = tableInfo["R"]
+            countTotal = length(x$obs)
+            if (countS == countTotal) {
+                "Sus"
+            } else if (countR == countTotal) {
+                "Res"
+            } else {
+                "Mixed"
+            }
+        }
+    )
+	
+	lcols <- resultsObs$V1
+	names(lcols) <- resultsObs$lgroups
+	Palette1 <- c('red','green','blue')
+	accuracy <- alldata$accuracy
+
+    ltitle1 <- paste0("Confidence of resistance\n", ltitle, ", Accuracy = ", accuracy, "\nDecision score = ", finalMetricStr, "\n", fVals)
+	plt <- ggplot(pred7, aes(x = lgroups, y = R)) + geom_boxplot(aes(fill=lcols[lgroups])) +
+		facet_grid(. ~ facet_var, scales = "free", space = "free") +
+		scale_colour_manual(values=Palette1) + xlab("Sample_MIC") +
+		ylab("Probability of resistance") +  ylim(0, 1) +
+		theme(axis.text.x = element_text(size=10,angle= 45)) + ggtitle(ltitle1)
+	lplotname = paste0("Res_", plotname)
+    ggsave(lplotname)
+
+    ltitle1 <- paste0("Prediction error\n", ltitle, ", Accuracy = ", accuracy, "\nDecision score = ", finalMetricStr, "\n", fVals)
+	plt <- ggplot(pred7, aes(x = lgroups, y = predErr)) + geom_boxplot(aes(fill=lcols[lgroups])) + 
+		facet_grid(. ~ facet_var, scales = "free", space = "free") +  
+		scale_colour_manual(values=Palette1) + xlab("Sample_MIC") + ylab("1 - Calling") +  
+		ylim(0, 1) + theme(axis.text.x = element_text(size=10,angle= 45)) + 
+		ggtitle(ltitle1)
+	lplotname <- paste0("Err_", plotname)
+    ggsave(lplotname)
 
 }
 
