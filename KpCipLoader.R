@@ -1,4 +1,4 @@
-# This file would convert the KpCip dataset into an R object.
+# This file would convert the KpCip dataset into an R object.    
 # For each dataset, we may have a separate data loader. If 
 # there are only few data format we can generalize them.
 
@@ -9,10 +9,11 @@
 #infile <- args[2]
 #outdir <- args[3]
  
-datadir <- '/home/unix/nirmalya/Desktop/DataDx2'
+library(rentrez)
+datadir <- '/home/nirmalya/research/DataDx'
 infile <- '/KpCip_for_Nirmalya_scaled.txt'
 outfile <- 'KpCip.RData'
-
+MICMid <- 2
 inpath <- paste0(datadir, '/', infile)
 expdata1 <- read.csv(inpath, sep = '\t', header = TRUE, row.names = 1, stringsAsFactors = FALSE)
 
@@ -28,9 +29,32 @@ names(MIC) <- names(MIC1)
 cdata1 <- expdata1[-c(1,2), ]
 cdata2 <- lapply(cdata1, function(x) as.numeric(x))
 cdata <- do.call (cbind, cdata2)
-rownames(cdata) <- rownames(cdata1)
 
-alldata <- list(lclass = lclass, MIC = MIC, cdata = cdata)
+rnames1 <- rownames(cdata1)
+rnames <- gsub("(R_up_|R_dn_|C_)(.*)", "\\2", rnames1)
+rownames(cdata) <- rnames
+
+species <- 'Klebsiella pneumoniae'
+
+getAnno <- function(feature) {
+    fval <- entrez_search(db="protein", feature)
+    for (lid in fval$ids) {
+        fval2 <- entrez_summary(db="protein", id = lid)
+        ltitle <- fval2$title
+        if (grepl(species, ltitle)) {
+            res <- gsub("(.*?)[[:space:]]*\\[.*$", "\\1", fval2$title)
+            return (paste0(feature, ":", res))
+        }
+    }
+    return (paste0(feature, ":"))
+}
+
+fVals <- lapply(rnames, getAnno)
+fMap <- unlist(fVals)
+names(fMap) <- rnames
+
+
+alldata <- list(lclass = lclass, MIC = MIC, MICMid = MICMid, cdata = cdata, species = species, fMap = fMap)
 
 outpath <- paste0(datadir, '/', outfile)
 save(alldata, file = outfile)

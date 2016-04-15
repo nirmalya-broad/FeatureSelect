@@ -170,8 +170,8 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
 	testSample <- rownames(modT$trainingData)
     predSample <-  testSample[modT$pred$rowIndex]
     MIC <- alldata$MIC
-	#MICMid <- alldata$MICMid
-	MICMid <- 2
+	MICMid <- alldata$MICMid
+	#MICMid <- 2
     pred1 <- modT$pred
     pred2  <- data.frame(predSample, pred1)
 	pred2  <- data.frame(predSample, pred1)	
@@ -216,12 +216,13 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
 	finalMetricAll <- pred7$predErr %*% pred7$corrDist
 	lcount <- length(pred7$predErr)
 	finalMetricAvg <- finalMetricAll / lcount
-	finalMetricStr = sprintf("%0.4f", finalMetricAvg)
+	finalMetricStr <- sprintf("%0.4f", finalMetricAvg)
 
 	fMap <- alldata$fMap
     features <- alldata$features
     fVals1 <- fMap[features]
-    fVals <- paste(as.character(fVals1), collapse = "\n")
+	fVals2 <- substr(fVals1, 1, 50) 
+    fVals <- paste(as.character(fVals2), collapse = "\n")
 
 	resultsObs <- ddply(pred7, .(lgroups),
         function(x) {
@@ -242,10 +243,11 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
 	lcols <- resultsObs$V1
 	names(lcols) <- resultsObs$lgroups
 	Palette1 <- c('red','green','blue')
-	accuracy <- alldata$accuracy
+	accuracy1 <- alldata$accuracy
+	accuracy <- sprintf('%0.4f', accuracy1)
 
     ltitle1 <- paste0("Confidence of resistance\n", ltitle, ", Accuracy = ", accuracy, "\nDecision score = ", finalMetricStr, "\n", fVals)
-	plt <- ggplot(pred7, aes(x = lgroups, y = R)) + geom_boxplot(aes(fill=lcols[lgroups])) +
+	plt_r <- ggplot(pred7, aes(x = lgroups, y = R)) + geom_boxplot(aes(fill=lcols[lgroups])) +
 		facet_grid(. ~ facet_var, scales = "free", space = "free") +
 		scale_colour_manual(values=Palette1) + xlab("Sample_MIC") +
 		ylab("Probability of resistance") +  ylim(0, 1) +
@@ -261,6 +263,7 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
 		ggtitle(ltitle1)
 	lplotname <- paste0("Err_", plotname)
     ggsave(lplotname)
+	return (plt_r)
 
 }
 
@@ -325,25 +328,79 @@ mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod) {
 	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
 	plotname <- paste0(dataname, "_", partitionMethod, "_", featureSelectionMethod, ".pdf")
 	ltitle <- paste0(dataname, ", ", partitionMethod, ", ", featureSelectionMethod)
-	plotResults(alldata4, plotname, ltitle)	
+	#plotResults(alldata4, plotname, ltitle)	
+	plotCombinedMetric(alldata4, plotname, ltitle)
 
 }
+
+
+# Multiple plot function
+#
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+#
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+#
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  #library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+
 
 library(caret)
 library(ggplot2)
 library(CORElearn)
 library(plyr)
 library(rentrez)
+library(grid)
+library(gridExtra)
 
 datadir <- '/home/nirmalya/research/DataDx'
 setwd(datadir)
 
 dataFile <- 'AcbMero.RData'
 
-mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
-mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
-mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
-mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
+plot1 <- mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
+plot2 <- mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
+plot3 <- mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
+plot4 <- mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
+ggsave('AcbMero.pdf', grid.arrange(plot1, plot2, plot3, plot4, ncol=2, nrow =2))
+
 
 #dataFile <- 'KpCip.RData'
 
