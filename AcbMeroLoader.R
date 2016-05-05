@@ -15,6 +15,7 @@ infile <- 'AcbMero1_norm_foldInd.csv'
 MICFile <- 'AcbMero1_strains_MICs.txt'
 outfile <- 'AcbMero.RData'
 miccoundary <- 2
+MICMid <- 2
 
 inpath <- paste0(datadir, '/', infile)
 expdata1 <- read.csv(inpath, header = TRUE, row.names = 1, stringsAsFactors = FALSE)
@@ -71,7 +72,14 @@ fVals <- lapply(rnames, getAnno)
 fMap <- unlist(fVals)
 names(fMap) <- rnames 
 
-alldata <- list(lclass = lclass, MIC = MIC, cdata = cdata, species = species, fMap = fMap)
+
+cdata <- cdata[, !(colnames(cdata) %in% "RB197")]
+MIC <- MIC[!(names(MIC) %in% "RB197")]
+
+lclass <- lclass[!(names(lclass) %in% "RB197")]
+
+alldata <- list(lclass = lclass, MIC = MIC, MICMid = MICMid, cdata = cdata, species = species, fMap = fMap)
 
 outpath <- paste0(datadir, '/', outfile)
 save(alldata, file = outpath)
+

@@ -125,10 +125,14 @@ getFeaturesRfRFE <- function (alldata, ltimes = 5, featureCount = 5) {
 	index <- createMultiFolds(ydata, k = finalCVCount, times = ltimes)
 
 	newRF <- rfFuncs
-	ctrl <- rfeControl(method = "repeatedcv", saveDetails = TRUE, number = 5, 
-		repeats = 5, returnResamp = "all",  functions = newRF, index = index)
+	# Rerank is set true for reranking
+	ctrl <- rfeControl(method = "repeatedcv", saveDetails = TRUE, 
+		number = finalCVCount, repeats = 5, returnResamp = "all",  
+		functions = newRF, index = index) 
+		  
 	varSeq <- seq(5, dim(xdata)[2] -1, by = 2)
-
+	
+	#browser()
 	rfRFE <- rfe(x = xdata, y = ydata, sizes = varSeq, imetric = "ROC",
 		rfeControl = ctrl, ntree = 1000)
 	features <- rfRFE$optVariables[1:featureCount]
@@ -147,9 +151,10 @@ validation <- function (alldata) {
 	finalCVCount <- getCVCount(testC)
 	indexT <- createMultiFolds(testC, k = finalCVCount, times = 5)
 
-	ctrlT <- trainControl(method = "repeatedcv", number = 5, repeats = 5, 
-		returnResamp = "all", savePredictions = "all", classProbs = TRUE, 
-		index = indexT)	
+	ctrlT <- trainControl(method = "repeatedcv", number = finalCVCount, 
+		repeats = 5, returnResamp = "all", savePredictions = "all", 
+		classProbs = TRUE, index = indexT)	
+
 	features <- alldata$features
 	cdata <- alldata$cdata
 	xdata1 <- cdata[, names(testC)]
@@ -382,24 +387,23 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 
 
 
-library(caret)
-library(ggplot2)
-library(CORElearn)
-library(plyr)
-library(rentrez)
-library(grid)
-library(gridExtra)
+#library(caret)
+#library(ggplot2)
+#library(CORElearn)
+#library(plyr)
+#library(rentrez)
+#library(grid)
+#library(gridExtra)
 
-datadir <- '/home/nirmalya/research/DataDx'
-setwd(datadir)
+#datadir <- '/home/nirmalya/research/DataDx'
+#setwd(datadir)
 
-dataFile <- 'AcbMero.RData'
+#dataFile <- 'AcbMero.RData'
 
-plot1 <- mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
-plot2 <- mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
-plot3 <- mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
-plot4 <- mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
-ggsave('AcbMero.pdf', grid.arrange(plot1, plot2, plot3, plot4, ncol=2, nrow =2))
+#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
+#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
+#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
+#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
 
 
 #dataFile <- 'KpCip.RData'
@@ -415,4 +419,5 @@ ggsave('AcbMero.pdf', grid.arrange(plot1, plot2, plot3, plot4, ncol=2, nrow =2))
 #mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
 #mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
 #mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
+
 
