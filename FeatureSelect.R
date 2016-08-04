@@ -178,7 +178,6 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
 	MICMid <- alldata$MICMid
 	#MICMid <- 2
     pred1 <- modT$pred
-    pred2  <- data.frame(predSample, pred1)
 	pred2  <- data.frame(predSample, pred1)	
 	predMIC <- MIC[predSample]
 	pred3  <-  data.frame(pred2, predMIC)
@@ -208,19 +207,19 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
 	
 	exDistToMid <- MICMid/pred6$predMIC
 	logDistToMid <- log2(exDistToMid)
-	absLogDistToMid <- abs(logDistToMid)
-	# one is add to assign nonzero weights to the points with MIC equals to 1.
-	corrDist <- 1 + absLogDistToMid
+	corrDist <- logDistToMid
+	corrDist[logDistToMid <= 0] <- abs(logDistToMid[logDistToMid <= 0]) + 1
 
 	pred7 <- data.frame(pred6, corrDist)
 
 	# Add one column for the facet_grid
-	facet_var <- ifelse (pred7$predMIC <=2 , c('Sus'), c('Res'))
+	mid_point <- max(alldata$MIC[alldata$lclass == 'S'])
+	facet_var <- ifelse (pred7$predMIC <=mid_point , c('Sus'), c('Res'))
 	pred7$facet_var <- factor(facet_var, levels = c('Sus', 'Res'))
 
 	finalMetricAll <- pred7$predErr %*% pred7$corrDist
-	lcount <- length(pred7$predErr)
-	finalMetricAvg <- finalMetricAll / lcount
+	lsum <- sum(pred7$corrDist)
+	finalMetricAvg <- finalMetricAll / lsum
 	finalMetricStr <- sprintf("%0.4f", finalMetricAvg)
 
 	fMap <- alldata$fMap

@@ -33,3 +33,9 @@ mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE"
 mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
 mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
 
+dataFile <- 'KpMero.RData'
+mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
+mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
+mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
+mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
+

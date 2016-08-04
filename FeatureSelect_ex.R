@@ -51,9 +51,7 @@ prepareBoxData <- function(alldata, datatype, featureSize = 5) {
     predSample <-  testSample[modT$pred$rowIndex]
     MIC <- alldata$MIC
     MICMid <- alldata$MICMid
-    #MICMid <- 2
     pred1 <- modT$pred
-    pred2  <- data.frame(predSample, pred1)
     pred2  <- data.frame(predSample, pred1)
     predMIC <- MIC[predSample]
     pred3  <-  data.frame(pred2, predMIC)
@@ -144,7 +142,15 @@ doPart <- function(alldata, featurePart, similar, different, fsMethod,
 	facet_var <- ifelse (boxAll2$predMIC <=2 , c('Sus'), c('Res'))
     boxAll2$facet_var <- factor(facet_var, levels = c('Sus', 'Res'))
 
-	ltitle1 <- paste0("Confidence on different regions\n", ltitle)
+
+	fMap <- alldata2$fMap
+    features <- alldata2$features
+    fVals1 <- fMap[features]
+    fVals2 <- substr(fVals1, 1, 50)
+    fVals <- paste(as.character(fVals2), collapse = "\n")
+
+
+	ltitle1 <- paste0("Confidence on different regions\n", ltitle, "\n", fVals)
 	
 	plt_r <- ggplot(boxAll2, aes(x = lgroups, y = R)) + 
 		geom_boxplot(aes(fill = datatype)) + 
@@ -155,7 +161,7 @@ doPart <- function(alldata, featurePart, similar, different, fsMethod,
 	
 	lplotname <- paste0("Comp_", plotname)
 	ggsave(lplotname)
-	#return (plt_r)
+	return (plt_r)
 
 }
 
@@ -212,28 +218,28 @@ doPatterns <- function(dataFile, fsMethod) {
 }
 
 
-library(caret)
-library(ggplot2)
-library(CORElearn)
-library(plyr)
-library(rentrez)
-library(grid)
-library(gridExtra)
+#library(caret)
+#library(ggplot2)
+#library(CORElearn)
+#library(plyr)
+#library(rentrez)
+#library(grid)
+#library(gridExtra)
 
 
-source('/home/nirmalya/research/featureselect/FeatureSelect.R')
-datadir <- '/home/nirmalya/research/DataDx'
-setwd(datadir)
+#source('/home/nirmalya/research/featureselect/FeatureSelect.R')
+#datadir <- '/home/nirmalya/research/DataDx'
+#setwd(datadir)
 
 
-dataFile <- 'AcbMero.RData'
-doPatterns(dataFile, fsMethod = "rfRFE")
-doPatterns(dataFile, fsMethod = "ReliefF")
+#dataFile <- 'AcbMero.RData'
+#doPatterns(dataFile, fsMethod = "rfRFE")
+#doPatterns(dataFile, fsMethod = "ReliefF")
 
-dataFile <- 'KpCip.RData'
-doPatterns(dataFile, fsMethod = "rfRFE")
-doPatterns(dataFile, fsMethod = "ReliefF")
+#dataFile <- 'KpCip.RData'
+#doPatterns(dataFile, fsMethod = "rfRFE")
+#doPatterns(dataFile, fsMethod = "ReliefF")
 
-dataFile <- 'KpGent.RData'
-doPatterns(dataFile, fsMethod = "rfRFE")
-doPatterns(dataFile, fsMethod = "ReliefF")
+#dataFile <- 'KpGent.RData'
+#doPatterns(dataFile, fsMethod = "rfRFE")
+#doPatterns(dataFile, fsMethod = "ReliefF")
