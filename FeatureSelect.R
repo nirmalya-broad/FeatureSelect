@@ -4,6 +4,7 @@
 seed1 <- 100
 seed2 <- 200
 seed3 <- 300
+source('Sepsis_MC_analysis_functions.R')
 
 # Partition the data
 
@@ -176,7 +177,6 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
     predSample <-  testSample[modT$pred$rowIndex]
     MIC <- alldata$MIC
 	MICMid <- alldata$MICMid
-	#MICMid <- 2
     pred1 <- modT$pred
 	pred2  <- data.frame(predSample, pred1)	
 	predMIC <- MIC[predSample]
@@ -205,7 +205,7 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
 	# We take the logarithm
 	# Distance compared to the middle point 2 in exponential
 	
-	exDistToMid <- MICMid/pred6$predMIC
+	exDistToMid <- pred6$predMIC/MICMid
 	logDistToMid <- log2(exDistToMid)
 	corrDist <- logDistToMid
 	corrDist[logDistToMid <= 0] <- abs(logDistToMid[logDistToMid <= 0]) + 1
@@ -321,6 +321,98 @@ plt <- ggplot(pred6, aes(x = lgroups, y = maxPred)) + geom_boxplot(aes(fill=lcol
 	ggsave(plotname)
 
 }
+
+getMetric <- function(alldata) {
+    modT <- alldata$modT
+    testSample <- rownames(modT$trainingData)
+    predSample <-  testSample[modT$pred$rowIndex]
+    MIC <- alldata$MIC
+    MICMid <- alldata$MICMid
+    pred1 <- modT$pred
+    pred2  <- data.frame(predSample, pred1)
+    predMIC <- MIC[predSample]
+    pred3  <-  data.frame(pred2, predMIC)
+
+    # Now get the error with respect to observed;
+    lrnames <- rownames(pred3)
+    predLst <- lapply(lrnames,
+        function(x, pred2) {
+            lobs <- as.character(pred2[x,"obs"])
+            pred2[x, lobs]
+        }, pred3
+    )
+
+    predObs <- unlist(predLst)
+    predErr <- 1 - predObs
+    pred4 <- data.frame(pred3, predErr)
+    lmtry <- modT$bestTune$mtry
+    pred5 <- pred4[pred4$mtry == lmtry, ]
+    lgroups <- paste0(pred5$predSample, "_", pred5$predMIC)
+    pred6 <- data.frame(pred5, lgroups)
+    MICTest <- MIC[names(alldata$testC)]
+    llevels <- paste0(names(MICTest), "_", MICTest)
+    pred6$lgroups <- factor(pred6$lgroups, levels = llevels)
+
+    # We take the logarithm
+    # Distance compared to the middle point 2 in exponential
+   
+    exDistToMid <- pred6$predMIC/MICMid
+    logDistToMid <- log2(exDistToMid)
+    corrDist <- logDistToMid
+    corrDist[logDistToMid <= 0] <- abs(logDistToMid[logDistToMid <= 0]) + 1
+
+    pred7 <- data.frame(pred6, corrDist)
+
+    # Add one column for the facet_grid
+    mid_point <- max(alldata$MIC[alldata$lclass == 'S'])
+    facet_var <- ifelse (pred7$predMIC <=mid_point , c('Sus'), c('Res'))
+    pred7$facet_var <- factor(facet_var, levels = c('Sus', 'Res'))
+
+    finalMetricAll <- pred7$predErr %*% pred7$corrDist
+    lsum <- sum(pred7$corrDist)
+    finalMetricAvg <- finalMetricAll / lsum
+   
+    return (finalMetricAvg)
+
+}
+
+
+getInfo <- function(alldata) {
+    disc_genes <- list()
+    trainData <- data.frame(alldata$cdata[, names(alldata$trainC)])
+    trainClass <- alldata$trainC
+    disc_genes$genes <- data.frame(trainData)
+    disc_genes$class <- as.integer(trainClass) -1
+
+    # Identify the pos genes and neg genes
+
+    res_part <- trainData[, trainClass == "R"]
+    sus_part <- trainData[, trainClass == "S"]
+    res_mean <- rowMeans(as.matrix(res_part))
+    sus_mean <- rowMeans(as.matrix(sus_part))
+    effect <- sus_mean - res_mean
+    pos.genes <- names(effect[effect >= 0])
+    neg.genes <- names(effect[effect < 0])
+    retlst = list(disc_genes = disc_genes, pos.genes = pos.genes, neg.genes = neg.genes)
+    return (retlst)
+}
+
+getFeaturesGreedy <- function(alldata, seed.genes, pos.genes, neg.genes, disc_genes,  forwardThresh = 0.01, featureCount = 5) {
+
+    yes.pos <- intersect(pos.genes, seed.genes)
+    if (length(yes.pos) == 0) {
+        yes.pos <- NULL
+    }
+    yes.neg <- intersect(neg.genes, seed.genes)
+    if (length(yes.neg) == 0) {
+        yes.neg = NULL
+    }
+
+    features <- forwardSearchWeighted_single(list(disc_genes), pos.genes, neg.genes, yes.pos=yes.pos, yes.neg=yes.neg, forwardThresh=forwardThresh, featureCount = featureCount)
+
+    alldata2 <- c(alldata, list(features = unlist(features)))
+}
+
 
 
 mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod) {
