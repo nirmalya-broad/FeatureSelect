@@ -170,7 +170,7 @@ validation <- function (alldata) {
 
 }
 
-plotCombinedMetric <- function(alldata, plotname, ltitle) {
+plotCombinedMetric <- function(alldata, plotname, ltitle, outpath) {
 
 	modT <- alldata$modT
 	testSample <- rownames(modT$trainingData)
@@ -257,68 +257,20 @@ plotCombinedMetric <- function(alldata, plotname, ltitle) {
 		ylab("Probability of resistance") +  ylim(0, 1) +
 		theme(axis.text.x = element_text(size=10,angle= 45)) + ggtitle(ltitle1)
 	lplotname = paste0("Res_", plotname)
-    ggsave(lplotname)
+	lpoltpath = paste0(outpath, "/", lplotname)
+    ggsave(lpoltpath)
 
-    ltitle1 <- paste0("Prediction error\n", ltitle, ", Accuracy = ", accuracy, "\nDecision score = ", finalMetricStr, "\n", fVals)
-	plt <- ggplot(pred7, aes(x = lgroups, y = predErr)) + geom_boxplot(aes(fill=lcols[lgroups])) + 
-		facet_grid(. ~ facet_var, scales = "free", space = "free") +  
-		scale_colour_manual(values=Palette1) + xlab("Sample_MIC") + ylab("1 - Calling") +  
-		ylim(0, 1) + theme(axis.text.x = element_text(size=10,angle= 45)) + 
-		ggtitle(ltitle1)
-	lplotname <- paste0("Err_", plotname)
-    ggsave(lplotname)
+    #ltitle1 <- paste0("Prediction error\n", ltitle, ", Accuracy = ", accuracy, "\nDecision score = ", finalMetricStr, "\n", fVals)
+	#plt <- ggplot(pred7, aes(x = lgroups, y = predErr)) + geom_boxplot(aes(fill=lcols[lgroups])) + 
+	#	facet_grid(. ~ facet_var, scales = "free", space = "free") +  
+	#	scale_colour_manual(values=Palette1) + xlab("Sample_MIC") + ylab("1 - Calling") +  
+	#	ylim(0, 1) + theme(axis.text.x = element_text(size=10,angle= 45)) + 
+	#	ggtitle(ltitle1)
+	#lplotname <- paste0("Err_", plotname)
+	#lpoltpath = paste0(outpath, "/", lplotname)
+    #ggsave(lpoltpath)
+    #ggsave(lplotname)
 	return (plt_r)
-
-}
-
-plotResults <- function(alldata, plotname, ltitle) {
-	modT <- alldata$modT
-	testSample <- rownames(modT$trainingData)
-	predSample <-  testSample[modT$pred$rowIndex]
-	MIC <- alldata$MIC
-	pred1 <- modT$pred
-	pred2  <- data.frame(predSample, pred1)
-	predMIC <- MIC[predSample]
- 	pred3  <-  data.frame(pred2, predMIC)
-	maxPred <- unlist(lapply(pred3$R, function(x) {max(x, 1-x)}))
-
-	pred4 <- data.frame(pred3, maxPred)
- 	lmtry <- modT$bestTune$mtry
- 	pred5 <- pred4[pred4$mtry == lmtry, ]
-	lgroups <- paste0(pred5$predSample, "_", pred5$predMIC)
-	pred6 <- data.frame(pred5, lgroups)
-	MICTest <- MIC[names(alldata$testC)]
-	llevels <- paste0(names(MICTest), "_", MICTest)
-	pred6$lgroups <- factor(pred6$lgroups, levels = llevels)
-
-	fMap <- alldata$fMap
-	features <- alldata$features
-	fVals1 <- fMap[features]
-	fVals <- paste(as.character(fVals1), collapse = "\n")
-	
-	results1 <- ddply(pred6, .(lgroups), 
-		function(x) {
-			tableInfo = table(x$pred)
-			countS = tableInfo["S"]
-			countR = tableInfo["R"]
-			countTotal = length(x$pred)
-			if (countS == countTotal) {
-				"Sus"
-			} else if (countR == countTotal) {
-				"Res"
-			} else {
-				"Mixed"
-			}
-		}
-	)
-	
-	lcols <- results1$V1
-	names(lcols) <- results1$lgroups
-	accuracy <- alldata$accuracy
-	ltitle1 <- paste0(ltitle, ", Accuracy = ", accuracy, "\n", fVals)
-	Palette1 <- c('red','green','blue')
-plt <- ggplot(pred6, aes(x = lgroups, y = maxPred)) + geom_boxplot(aes(fill=lcols[lgroups])) + scale_colour_manual(values=Palette1) + xlab("Sample_MIC") + ylab("Probability of calling") +  theme(axis.text.x = element_text(size=10,angle= 45)) + ggtitle(ltitle1)
-	ggsave(plotname)
 
 }
 
@@ -376,6 +328,39 @@ getMetric <- function(alldata) {
 
 }
 
+getFeaturesGreedy <- function(alldata, seed.genes, pos.genes, neg.genes, disc_genes,  forwardThresh = 0.01, featureCount = 5) {
+
+    yes.pos <- intersect(pos.genes, seed.genes)
+    if (length(yes.pos) == 0) {
+        yes.pos <- NULL
+    }
+    yes.neg <- intersect(neg.genes, seed.genes)
+    if (length(yes.neg) == 0) {
+        yes.neg = NULL
+    }
+
+    features <- forwardSearchWeighted_single(list(disc_genes), pos.genes, neg.genes, yes.pos=yes.pos, yes.neg=yes.neg, forwardThresh=forwardThresh, featureCount = featureCount)
+
+    alldata2 <- c(alldata, list(features = unlist(features)))
+}
+
+getMetricSingle <- function(index, all.genes, pos.genes, neg.genes, 
+		disc_genes, alldata2) {
+	parts <- strsplit(index, split = '_')
+	parts_i <- unlist(parts)[1]
+	parts_j <- unlist(parts)[2]
+	i <- strtoi(parts_i)
+	j <- strtoi(parts_j)
+	seed.genes <- all.genes[c(i, j)]
+
+    alldata3 <- getFeaturesGreedy(alldata2, seed.genes, pos.genes, neg.genes, disc_genes)
+    alldata4 <- validation(alldata3)
+    accu <- alldata4$accuracy
+    lMetric <- getMetric(alldata4)
+	farr <- c(accu = accu, lMetric = lMetric, i = i, j = j)
+	return(farr)
+
+}
 
 getInfo <- function(alldata) {
     disc_genes <- list()
@@ -397,22 +382,63 @@ getInfo <- function(alldata) {
     return (retlst)
 }
 
-getFeaturesGreedy <- function(alldata, seed.genes, pos.genes, neg.genes, disc_genes,  forwardThresh = 0.01, featureCount = 5) {
+drawPlot <- function(index, all.genes, ldf, 
+		alldata2, pos.genes, neg.genes, disc_genes, 
+		dataname, partitionMethod, featureSelectionMethod, outpath) {
+	i <- ldf[index, "i"]
+	j <- ldf[index, "j"]
+	seed.genes <- all.genes[c(i, j)]
 
-    yes.pos <- intersect(pos.genes, seed.genes)
-    if (length(yes.pos) == 0) {
-        yes.pos <- NULL
-    }
-    yes.neg <- intersect(neg.genes, seed.genes)
-    if (length(yes.neg) == 0) {
-        yes.neg = NULL
-    }
-
-    features <- forwardSearchWeighted_single(list(disc_genes), pos.genes, neg.genes, yes.pos=yes.pos, yes.neg=yes.neg, forwardThresh=forwardThresh, featureCount = featureCount)
-
-    alldata2 <- c(alldata, list(features = unlist(features)))
+	alldata3 <- getFeaturesGreedy(alldata2, seed.genes, pos.genes, neg.genes,
+    	disc_genes)
+    # Do the validation and print the accuracy
+    alldata4 <- validation(alldata3)
+    accu <- alldata4$accuracy
+    lMetric <- getMetric(alldata4)
+    # Generate a plot
+    plotname <- paste0(dataname, "_", partitionMethod, "_", featureSelectionMethod, "_", i, "_", j, ".pdf")
+    ltitle <- paste0(dataname, ", ", partitionMethod, ", ", featureSelectionMethod)
+    plotCombinedMetric(alldata4, plotname, ltitle, outpath)
 }
 
+mainFuncGreedy <- function(datadir, dataFile, partitionMethod, accuCutoff = 0.9, topPlotNum = 10) {
+    load(dataFile)
+    alldata2 <- doPartition(alldata, partitionMethod)
+
+    all.genes <- rownames(alldata2$cdata)
+    len.all.genes <- length(all.genes)
+    infoLst <- getInfo(alldata2)
+    disc_genes <- infoLst$disc_genes
+    pos.genes <- infoLst$pos.genes
+    neg.genes <- infoLst$neg.genes
+    count <- 1
+	featureSelectionMethod = "greedy"
+	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
+	outpath = paste0(dataname, "_", partitionMethod, "_", featureSelectionMethod)
+	dir.create(file.path(datadir, outpath), showWarnings = FALSE)
+	
+    indices = c()
+	for (i in c(1:len.all.genes)) {
+        j = 1
+        while (j < i) {
+			part = paste0(i, '_', j)
+			indices = c(part, indices)
+			j = j+1
+		}
+	}
+
+	res <- lapply(indices, getMetricSingle, all.genes, 
+		pos.genes, neg.genes, disc_genes, alldata2)
+
+	ldf1 <- data.frame(do.call(rbind, res))
+	ldf2 <- ldf1[order(-ldf1$accu, ldf1$lMetric),]
+
+	# Now create plot for top ten
+	ldf3 <- ldf2[1:topPlotNum,]
+	lapply(1:topPlotNum, drawPlot, all.genes, ldf3, 
+		alldata2, pos.genes, neg.genes, disc_genes,
+		dataname, partitionMethod, featureSelectionMethod, outpath)
+}
 
 
 mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod) {
@@ -424,91 +450,8 @@ mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod) {
 	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
 	plotname <- paste0(dataname, "_", partitionMethod, "_", featureSelectionMethod, ".pdf")
 	ltitle <- paste0(dataname, ", ", partitionMethod, ", ", featureSelectionMethod)
-	#plotResults(alldata4, plotname, ltitle)	
 	plotCombinedMetric(alldata4, plotname, ltitle)
 
 }
-
-
-# Multiple plot function
-#
-# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
-# - cols:   Number of columns in layout
-# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
-#
-# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
-# then plot 1 will go in the upper left, 2 will go in the upper right, and
-# 3 will go all the way across the bottom.
-#
-multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
-  #library(grid)
-
-  # Make a list from the ... arguments and plotlist
-  plots <- c(list(...), plotlist)
-
-  numPlots = length(plots)
-
-  # If layout is NULL, then use 'cols' to determine layout
-  if (is.null(layout)) {
-    # Make the panel
-    # ncol: Number of columns of plots
-    # nrow: Number of rows needed, calculated from # of cols
-    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
-                    ncol = cols, nrow = ceiling(numPlots/cols))
-  }
-
- if (numPlots==1) {
-    print(plots[[1]])
-
-  } else {
-    # Set up the page
-    grid.newpage()
-    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
-
-    # Make each plot, in the correct location
-    for (i in 1:numPlots) {
-      # Get the i,j matrix positions of the regions that contain this subplot
-      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
-
-      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
-                                      layout.pos.col = matchidx$col))
-    }
-  }
-}
-
-
-
-#library(caret)
-#library(ggplot2)
-#library(CORElearn)
-#library(plyr)
-#library(rentrez)
-#library(grid)
-#library(gridExtra)
-
-#datadir <- '/home/nirmalya/research/DataDx'
-#setwd(datadir)
-
-#dataFile <- 'AcbMero.RData'
-
-#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
-#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
-#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
-#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
-
-
-#dataFile <- 'KpCip.RData'
-
-#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
-#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
-#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
-#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
-
-#dataFile <- 'KpGent.RData'
-
-#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE")
-#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE")
-#mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF")
-#mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF")
 
 
