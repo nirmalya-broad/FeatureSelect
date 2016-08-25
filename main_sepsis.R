@@ -14,13 +14,13 @@ source('Sepsis_MC_analysis_functions.R')
 datadir <- '/home/nirmalya/research/DataDx'
 setwd(datadir)
 
-#dataFile <- 'AcbMero.RData'
-dataFile <- 'KpMero.RData'
+dataFile <- 'AcbMero.RData'
+#dataFile <- 'KpMero.RData'
+#dataFile <- 'KpGent.RData'
+#dataFile <- 'KpCip.RData'
 load(dataFile)
 
 mainFuncGreedy(datadir, dataFile, partitionMethod = "alternate", accuCutoff = 0.95)
 
-#dataFile <- 'KpCip.RData'
-#dataFile <- 'KpGent.RData'
 
 

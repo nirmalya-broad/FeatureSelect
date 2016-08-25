@@ -144,7 +144,7 @@ getFeaturesRfRFE <- function (alldata, ltimes = 5, featureCount = 5) {
 # This would validate the data. Common for all the datasets, probably would 
 # use random forest
 
-validation <- function (alldata) {
+validation <- function (alldata, lmethod) {
 
 	testC <-  alldata$testC
 
@@ -161,10 +161,15 @@ validation <- function (alldata) {
 	xdata1 <- cdata[, names(testC)]
     xdata2 <- t(xdata1)
 	testData <- data.frame(xdata2[, features], testC)
-	modT <- train( testC ~ ., data = testData, trControl = ctrlT)
-	bestMtry <- modT$bestTune$mtry
+	modT <- train( testC ~ ., data = testData, trControl = ctrlT, method = lmethod)
 	lresults <- modT$results	
-	accuracy <- lresults[lresults$mtry == bestMtry, "Accuracy"]	
+	accuracy <- 0
+	if (is.null(modT$bestTune$mtry) == FALSE) {
+		bestMtry <- modT$bestTune$mtry
+		accuracy <- lresults[lresults$mtry == bestMtry, "Accuracy"]	
+	} else {
+		accuracy <- lresults[, "Accuracy"]
+	}
 	alldata2 <- c(alldata, list(modT = modT, accuracy = accuracy))
 	return (alldata2)
 
@@ -194,8 +199,13 @@ plotCombinedMetric <- function(alldata, plotname, ltitle, outpath) {
 	predObs <- unlist(predLst)
 	predErr <- 1 - predObs
 	pred4 <- data.frame(pred3, predErr)
-	lmtry <- modT$bestTune$mtry
-    pred5 <- pred4[pred4$mtry == lmtry, ]
+	pred5 <- NULL
+	if (is.null(modT$bestTune$mtry) == FALSE) {
+		lmtry <- modT$bestTune$mtry
+    	pred5 <- pred4[pred4$mtry == lmtry, ]
+	} else {
+		pred5 <- pred4
+	}
     lgroups <- paste0(pred5$predSample, "_", pred5$predMIC)
     pred6 <- data.frame(pred5, lgroups)
     MICTest <- MIC[names(alldata$testC)]
@@ -297,8 +307,15 @@ getMetric <- function(alldata) {
     predObs <- unlist(predLst)
     predErr <- 1 - predObs
     pred4 <- data.frame(pred3, predErr)
-    lmtry <- modT$bestTune$mtry
-    pred5 <- pred4[pred4$mtry == lmtry, ]
+
+	pred5 <- NULL
+    if (is.null(modT$bestTune$mtry) == FALSE) {
+        lmtry <- modT$bestTune$mtry
+        pred5 <- pred4[pred4$mtry == lmtry, ]
+    } else {
+        pred5 <- pred4
+    }
+
     lgroups <- paste0(pred5$predSample, "_", pred5$predMIC)
     pred6 <- data.frame(pred5, lgroups)
     MICTest <- MIC[names(alldata$testC)]
@@ -345,7 +362,7 @@ getFeaturesGreedy <- function(alldata, seed.genes, pos.genes, neg.genes, disc_ge
 }
 
 getMetricSingle <- function(index, all.genes, pos.genes, neg.genes, 
-		disc_genes, alldata2) {
+		disc_genes, alldata2, lmethod) {
 	parts <- strsplit(index, split = '_')
 	parts_i <- unlist(parts)[1]
 	parts_j <- unlist(parts)[2]
@@ -354,7 +371,7 @@ getMetricSingle <- function(index, all.genes, pos.genes, neg.genes,
 	seed.genes <- all.genes[c(i, j)]
 
     alldata3 <- getFeaturesGreedy(alldata2, seed.genes, pos.genes, neg.genes, disc_genes)
-    alldata4 <- validation(alldata3)
+    alldata4 <- validation(alldata3, lmethod)
     accu <- alldata4$accuracy
     lMetric <- getMetric(alldata4)
 	farr <- c(accu = accu, lMetric = lMetric, i = i, j = j)
@@ -401,7 +418,7 @@ drawPlot <- function(index, all.genes, ldf,
     plotCombinedMetric(alldata4, plotname, ltitle, outpath)
 }
 
-mainFuncGreedy <- function(datadir, dataFile, partitionMethod, accuCutoff = 0.9, topPlotNum = 10) {
+mainFuncGreedy <- function(datadir, dataFile, partitionMethod, lmethod, accuCutoff = 0.9, topPlotNum = 10) {
     load(dataFile)
     alldata2 <- doPartition(alldata, partitionMethod)
 
@@ -428,7 +445,7 @@ mainFuncGreedy <- function(datadir, dataFile, partitionMethod, accuCutoff = 0.9,
 	}
 
 	res <- lapply(indices, getMetricSingle, all.genes, 
-		pos.genes, neg.genes, disc_genes, alldata2)
+		pos.genes, neg.genes, disc_genes, alldata2, lmethod)
 
 	ldf1 <- data.frame(do.call(rbind, res))
 	ldf2 <- ldf1[order(-ldf1$accu, ldf1$lMetric),]
@@ -441,16 +458,19 @@ mainFuncGreedy <- function(datadir, dataFile, partitionMethod, accuCutoff = 0.9,
 }
 
 
-mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod) {
+mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod) {
 	load(dataFile)
 	alldata2 <- doPartition(alldata, partitionMethod)
 	alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod)
-	alldata4 <- validation(alldata3)
+	alldata4 <- validation(alldata3, lmethod)
 	
 	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
 	plotname <- paste0(dataname, "_", partitionMethod, "_", featureSelectionMethod, ".pdf")
 	ltitle <- paste0(dataname, ", ", partitionMethod, ", ", featureSelectionMethod)
-	plotCombinedMetric(alldata4, plotname, ltitle)
+	outpath <- lmethod
+	dir.create(file.path(datadir, outpath), showWarnings = FALSE)
+
+	plotCombinedMetric(alldata4, plotname, ltitle, outpath)
 
 }
 
