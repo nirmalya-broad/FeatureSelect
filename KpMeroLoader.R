@@ -78,8 +78,23 @@ fVals <- lapply(rnames, getAnno)
 fMap <- unlist(fVals)
 names(fMap) <- rnames 
 
+#cdata <- cdata[, !(colnames(cdata) %in% "RB412")]
+#MIC <- MIC[!(names(MIC) %in% "RB412")]
+#lclass <- lclass[!(names(lclass) %in% "RB412")]
 
-alldata <- list(lclass = lclass, MIC = MIC, MICMid = MICMid, cdata = cdata, species = species, fMap = fMap)
+#cdata <- cdata[, !(colnames(cdata) %in% "RB270")]
+#MIC <- MIC[!(names(MIC) %in% "RB270")]
+#lclass <- lclass[!(names(lclass) %in% "RB270")]
+
+lclass['RB270'] <- 'R'
+lclass['RB412'] <- 'S'
+lclass['RB403'] <- 'R'
+
+
+
+dname = "KpMero"
+
+alldata <- list(lclass = lclass, MIC = MIC, MICMid = MICMid, cdata = cdata, species = species, fMap = fMap, dname = dname)
 
 outpath <- paste0(datadir, '/', outfile)
 save(alldata, file = outpath)

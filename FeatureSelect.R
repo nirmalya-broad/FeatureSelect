@@ -22,6 +22,62 @@ doPartition <- function (alldata, type) {
 # validation.
 
 doPartitionAlternate <- function(alldata) {
+	if (is.null(alldata$dname) == FALSE) {
+		dname <- alldata$dname
+		if (dname == "AcbMero") {
+			#Spart <- which(lclass %in% "S")
+			#Rpart <- which(lclass %in% "R")
+    		#SpartLen <- length(Spart)
+    		#RpartLen <- length(Rpart)
+			
+
+			#Sodd <- seq(1, SpartLen, 2)
+			#Seven <- seq(2, SpartLen, 2)
+			#Rodd <- seq(1, RpartLen, 2)
+			#Reven <- seq(2, RpartLen, 2)
+
+			#SoddPart <- Spart[Sodd]
+			#SevenPart <- Spart[Seven]
+			#RoddPart <- Rpart[Rodd]
+			#RevenPart <- Rpart[Reven]
+			#trainPart <- c(SoddPart, RoddPart)
+			#testpart <- c(SevenPart, RevenPart)
+		
+			#trainC <- lclass[trainPart]
+			#testC <- lclass[testpart]
+
+			#testC <- c(SevenPart, RevenPart)
+
+			lclass <- alldata$lclass
+			lstrain <- "RB197"
+			lclass1 <- lclass[!(names(lclass) %in% lstrain)]
+			odd <- seq(1, length(lclass1), 2)
+    		even <- seq(2, length(lclass1), 2)
+    		trainC <- lclass1[odd]
+   			testC <- lclass1[even]
+			
+			testSpart <- subset(testC, testC == "S")
+			testSpart.names <- names(testSpart)
+			testSpart.vals <- as.character(testSpart)
+
+
+			testRpart <- subset(testC, testC == "R")
+            testRpart.names <- names(testRpart)
+            testRpart.vals <- as.character(testRpart)
+
+			testnames <- c(testSpart.names, lstrain, testRpart.names)
+			testvals <- c(testSpart.vals, as.character(lclass[lstrain]), 
+					testRpart.vals)
+			names(testvals) <- testnames
+			testC <- factor(testvals)
+
+
+			alldata2 <- c(alldata, list(trainC = trainC, testC = testC))
+			return (alldata2)
+
+		}
+	}
+	
 	lclass <- alldata$lclass
 	odd <- seq(1, length(lclass), 2)
 	even <- seq(2, length(lclass), 2)
@@ -61,14 +117,91 @@ doPartitionExtreme <- function(alldata) {
 }
 
 
-doFeatureSelection <- function(alldata, fsMethod) {
+doFeatureSelection <- function(alldata, fsMethod, pval = 0.01) {
 	if (fsMethod == "ReliefF") {
 		alldata2 <- getFeaturesReliefF(alldata)
 		return (alldata2)
 	} else if (fsMethod == "rfRFE") {
 		alldata2 <- getFeaturesRfRFE(alldata)
 		return (alldata2)
+	} else if (fsMethod == "pGreedy") {
+		alldata2 <- getFeaturesPGreedy(alldata)
+		return (alldata2)
+	} else if (fsMethod == "SVMRFE") {
+		alldata2 <- getFeaturesSVMRFE(alldata)
+		return (alldata2)
 	}
+	else if (fsMethod == "Boruta") {
+		alldata2 <- getFeaturesBoruta(alldata, pval) 
+		return (alldata2)
+	}
+}
+
+
+# We shall use all the features whatever returned by Boruta
+getFeaturesBoruta <- function(alldata, pval) {
+	trainC <- alldata$trainC
+    ydata <- trainC
+    cdata <- alldata$cdata
+    xdata1 <- cdata[, names(trainC)]
+    xdata2 <- t(xdata1)
+	xdata <- data.frame(xdata2, trainC)
+
+	BorutaRes <- Boruta(trainC ~., data = xdata, pValue = pval)
+	finalDecision <- BorutaRes$finalDecision
+	features <- names(finalDecision[finalDecision == "Confirmed"])
+	alldata2 <- c(alldata, list(BorutaRes = BorutaRes, features = features))
+    return (alldata2) 
+
+
+}
+
+getFeaturesSVMRFE <- function(alldata, ltimes = 5, featureCount = 2) {
+	
+	# create the index for five fold data with five times repeat
+    trainC <- alldata$trainC
+    ydata <- trainC
+    cdata <- alldata$cdata
+    xdata1 <- cdata[, names(trainC)]
+    xdata <- t(xdata1)
+
+    set.seed(seed1)
+    finalCVCount <- getCVCount(trainC)
+    index <- createMultiFolds(ydata, k = finalCVCount, times = ltimes)
+
+	svmFuncs <- caretFuncs
+	#svmFuncs$summary <- fivestats
+
+	ctrl <- rfeControl(method = "repeatedcv",
+		saveDetails = TRUE,
+		number = finalCVCount,
+		repeats = 5,
+		returnResamp = "all",
+		verbose = TRUE,
+		functions = svmFuncs,
+		index = index)
+
+
+    varSeq <- seq(1, dim(xdata)[2] -1, by = 1)
+
+	svmRFE <- rfe(x = xdata,
+		y = ydata,
+		sizes = varSeq,
+		#metric = "ROC",
+		rfeControl = ctrl,
+		## Now options to train()
+		method = "svmRadial",
+		tuneLength = 12,
+		preProc = c("center", "scale"),
+		## Below specifies the inner resampling process
+		trControl = trainControl(method = "cv",
+		verboseIter = FALSE,
+		classProbs = TRUE))
+
+    features <- svmRFE$optVariables[1:featureCount]
+    alldata2 <- c(alldata, list(svmRFE = svmRFE, features = features))
+    return (alldata2) 
+	
 }
 
 getCVCount <- function(classLabels) {
@@ -77,6 +210,124 @@ getCVCount <- function(classLabels) {
 	smallClassCount <- min(table(classLabels))
 	finalCVCount <- min(standardCVCount, smallClassCount)
 	return (finalCVCount)
+}
+
+
+# this starts with seedNum probes with lowest p-values. The assumption is that there would be 
+# one or two magic genes.
+
+wilcoxon_single <- function(probe, res_part, sus_part) {
+	res_single <- as.numeric(res_part[probe, ])
+	sus_single <- as.numeric(sus_part[probe, ])
+
+	lres <- wilcox.test(res_single, sus_single)
+	pval <- lres$p.value
+	return (pval)
+}
+
+
+ttest_single <- function(probe, res_part, sus_part) {
+    res_single <- as.numeric(res_part[probe, ])
+    sus_single <- as.numeric(sus_part[probe, ])
+
+    lres <- t.test(res_single, sus_single)
+    pval <- lres$p.value
+    return (pval)
+}
+
+
+
+getPvalsAll <- function(ldata, lclass) {
+
+    # Identify the pos genes and neg genes
+
+    res_part <- ldata[, lclass == "R"]
+    sus_part <- ldata[, lclass == "S"]
+
+    probes <- rownames(res_part)
+
+    pval_lst <- lapply(probes, wilcoxon_single, res_part, sus_part)
+    #pval_lst <- lapply(probes, ttest_single, res_part, sus_part)
+    pvals1 <- unlist(pval_lst)
+    names(pvals1) <- probes
+    pvals <- pvals1
+
+}
+
+
+drawPvals <- function (alldata, ltitle, plotname, outpath) {
+	trainData <- data.frame(alldata$cdata[, names(alldata$trainC)])
+    trainClass <- alldata$trainC
+
+    trainpvals <- getPvalsAll(trainData, trainClass)
+
+    testData <- data.frame(alldata$cdata[, names(alldata$testC)])
+    testClass <- alldata$testC
+
+    testpvals <- getPvalsAll(testData, testClass)
+
+    train_pval_log2 <- log2(trainpvals)
+    test_pval_log2 <- log2(testpvals)
+
+	ldata <- data.frame(train_pval_log2, test_pval_log2)
+	p <- ggplot(ldata, aes(train_pval_log2, test_pval_log2, label = names(trainpvals)))
+	p + geom_point() + geom_text(hjust = 0, nudge_x = 0.05, size = 3) + ggtitle(ltitle)
+
+	lfile <- paste0('Pvals_', ltitle)
+	pdffile <- paste0(outpath, '/', lfile, '.pdf')
+	ggsave(pdffile)
+
+
+	ldata <- alldata$cdata
+	lclass <- alldata$lclass
+
+	allpvals <- getPvalsAll(ldata, lclass)
+	all_pval_log2 <- log2(allpvals)
+
+	ldata <- data.frame(train_pval_log2, all_pval_log2)
+	p <- ggplot(ldata, aes(train_pval_log2, all_pval_log2, label = names(trainpvals)))
+    p + geom_point() + geom_text(hjust = 0, nudge_x = 0.05, size = 3) + ggtitle(ltitle)
+
+    lfile <- paste0('Pvals_all_', ltitle)
+    pdffile <- paste0(outpath, '/', lfile, '.pdf')
+    ggsave(pdffile)
+
+
+}
+
+
+getFeaturesPGreedy <- function(alldata, ltimes = 5, featureCount = 5, seedNum = 1) {
+
+	trainData <- data.frame(alldata$cdata[, names(alldata$trainC)])
+    trainClass <- alldata$trainC
+
+    # Identify the pos genes and neg genes
+
+    res_part <- trainData[, trainClass == "R"]
+    sus_part <- trainData[, trainClass == "S"]
+
+	probes <- rownames(res_part)
+	
+	pval_lst <- lapply(probes, wilcoxon_single, res_part, sus_part)
+	#pval_lst <- lapply(probes, ttest_single, res_part, sus_part)
+	pvals1 <- unlist(pval_lst)
+	names(pvals1) <- probes
+	pvals <- sort(pvals1)
+
+	lseed <- pvals[1:seedNum]
+	seed.genes <- names(lseed)
+
+	# Now we have to apply another algorithm that would increase the set of features
+	# without hurting the performance
+	
+	infoLst <- getInfo(alldata)
+    disc_genes <- infoLst$disc_genes
+    pos.genes <- infoLst$pos.genes
+    neg.genes <- infoLst$neg.genes
+
+	alldata2 <- getFeaturesGreedy(alldata, seed.genes, pos.genes, neg.genes,
+        disc_genes)	
+		
 }
 
 getFeaturesReliefF <- function(alldata, ltimes = 5, featureCount = 5, lEst = "ReliefFexpRank") {
@@ -112,7 +363,7 @@ getFeaturesReliefF <- function(alldata, ltimes = 5, featureCount = 5, lEst = "Re
 
 }
 
-getFeaturesRfRFE <- function (alldata, ltimes = 5, featureCount = 5) {
+getFeaturesRfRFE <- function (alldata, ltimes = 5) {
 
 	# create the index for five fold data with five times repeat
 	trainC <- alldata$trainC
@@ -129,14 +380,15 @@ getFeaturesRfRFE <- function (alldata, ltimes = 5, featureCount = 5) {
 	# Rerank is set true for reranking
 	ctrl <- rfeControl(method = "repeatedcv", saveDetails = TRUE, 
 		number = finalCVCount, repeats = 5, returnResamp = "all",  
-		functions = newRF, index = index) 
+		functions = newRF, index = index, verbose = TRUE) 
 		  
 	varSeq <- seq(5, dim(xdata)[2] -1, by = 2)
 	
 	#browser()
-	rfRFE <- rfe(x = xdata, y = ydata, sizes = varSeq, imetric = "ROC",
+	rfRFE <- rfe(x = xdata, y = ydata, sizes = varSeq, metric = "ROC",
 		rfeControl = ctrl, ntree = 1000)
-	features <- rfRFE$optVariables[1:featureCount]
+	#features <- rfRFE$optVariables[1:featureCount]
+	features <- rfRFE$optVariables
 	alldata2 <- c(alldata, list(rfRFE = rfRFE, features = features))
 	return (alldata2) 
 }
@@ -144,7 +396,7 @@ getFeaturesRfRFE <- function (alldata, ltimes = 5, featureCount = 5) {
 # This would validate the data. Common for all the datasets, probably would 
 # use random forest
 
-validation <- function (alldata, lmethod) {
+validation <- function (alldata, lmethod, featureCount = 5) {
 
 	testC <-  alldata$testC
 
@@ -156,7 +408,7 @@ validation <- function (alldata, lmethod) {
 		repeats = 5, returnResamp = "all", savePredictions = "all", 
 		classProbs = TRUE, index = indexT)	
 
-	features <- alldata$features
+	features <- alldata$features[1:featureCount]
 	cdata <- alldata$cdata
 	xdata1 <- cdata[, names(testC)]
     xdata2 <- t(xdata1)
@@ -175,7 +427,7 @@ validation <- function (alldata, lmethod) {
 
 }
 
-plotCombinedMetric <- function(alldata, plotname, ltitle, outpath) {
+plotCombinedMetric <- function(alldata, plotname, ltitle, outpath, featureCount = 5) {
 
 	modT <- alldata$modT
 	testSample <- rownames(modT$trainingData)
@@ -233,7 +485,7 @@ plotCombinedMetric <- function(alldata, plotname, ltitle, outpath) {
 	finalMetricStr <- sprintf("%0.4f", finalMetricAvg)
 
 	fMap <- alldata$fMap
-    features <- alldata$features
+    features <- alldata$features[1:featureCount]
     fVals1 <- fMap[features]
 	fVals2 <- substr(fVals1, 1, 50) 
     fVals <- paste(as.character(fVals2), collapse = "\n")
@@ -401,7 +653,7 @@ getInfo <- function(alldata) {
 
 drawPlot <- function(index, all.genes, ldf, 
 		alldata2, pos.genes, neg.genes, disc_genes, 
-		dataname, partitionMethod, featureSelectionMethod, outpath) {
+		dataname, partitionMethod, featureSelectionMethod, outpath, lmethod) {
 	i <- ldf[index, "i"]
 	j <- ldf[index, "j"]
 	seed.genes <- all.genes[c(i, j)]
@@ -409,7 +661,7 @@ drawPlot <- function(index, all.genes, ldf,
 	alldata3 <- getFeaturesGreedy(alldata2, seed.genes, pos.genes, neg.genes,
     	disc_genes)
     # Do the validation and print the accuracy
-    alldata4 <- validation(alldata3)
+    alldata4 <- validation(alldata3, lmethod)
     accu <- alldata4$accuracy
     lMetric <- getMetric(alldata4)
     # Generate a plot
@@ -418,7 +670,7 @@ drawPlot <- function(index, all.genes, ldf,
     plotCombinedMetric(alldata4, plotname, ltitle, outpath)
 }
 
-mainFuncGreedy <- function(datadir, dataFile, partitionMethod, lmethod, accuCutoff = 0.9, topPlotNum = 10) {
+mainFuncGreedy <- function(datadir, dataFile, partitionMethod, lmethod = "rf", accuCutoff = 0.9, topPlotNum = 10) {
     load(dataFile)
     alldata2 <- doPartition(alldata, partitionMethod)
 
@@ -454,14 +706,61 @@ mainFuncGreedy <- function(datadir, dataFile, partitionMethod, lmethod, accuCuto
 	ldf3 <- ldf2[1:topPlotNum,]
 	lapply(1:topPlotNum, drawPlot, all.genes, ldf3, 
 		alldata2, pos.genes, neg.genes, disc_genes,
-		dataname, partitionMethod, featureSelectionMethod, outpath)
+		dataname, partitionMethod, featureSelectionMethod, outpath, lmethod)
 }
 
+getInfoFeatureWise <- function(featureCount, alldata, lmethod) {
+	alldata2 <- validation(alldata, lmethod, featureCount)
+	accuracy <- alldata2$accuracy
+    lmetric <- getMetric(alldata2)
 
-mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod) {
+	return (c(accuracy = accuracy, lmetric = lmetric))
+
+}
+
+mainFuncFeatureWise <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf") {
+	load(dataFile)
+    alldata2 <- doPartition(alldata, partitionMethod)
+    alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod, pval = pval)
+
+	featureLen <- length(alldata3$features)
+	res1 <- lapply(1:featureLen, getInfoFeatureWise, alldata3, lmethod)
+	res2 <- data.frame(featureCount = 1:featureLen, do.call(rbind, res1))
+	names(res2)[2] <- "Accuracy"
+	names(res2)[3] <- "Decision metric"
+	res3 <- melt(res2, id.vars = 'featureCount')
+
+	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
+	ltitle <- paste0("AllFeatures_", dataname, "_", partitionMethod, "_", featureSelectionMethod)
+
+	plt <- ggplot(res3, aes(x = featureCount, y = value, colour = variable)) + 
+		geom_point() + scale_x_continuous(breaks = seq(1, featureLen, 2)) +
+		scale_y_continuous(breaks = seq(0, 1, 0.05)) +  
+		xlab("Number of features") + ylab("Accuracy/Decision metric") +
+		ggtitle(ltitle)
+
+    outpath <- lmethod
+    lplotname <- paste0(ltitle,  ".pdf")
+	lpoltpath = paste0(outpath, "/", lplotname)
+    ggsave(lpoltpath)
+	
+
+	#featureCount <- 4
+	#alldata_2 <- validation(alldata3, lmethod, featureCount)
+	#lmetric <- getMetric(alldata_2)
+	#dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
+    #plotname <- paste0(dataname, "_", partitionMethod, "_", featureSelectionMethod, "_", featureCount,  ".pdf")
+    #ltitle <- paste0(dataname, ", ", partitionMethod, ", ", featureSelectionMethod)
+    #dir.create(file.path(datadir, outpath), showWarnings = FALSE)
+
+    #plotCombinedMetric(alldata_2, plotname, ltitle, outpath, featureCount)
+	
+}
+
+mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf", pval = 0.01) {
 	load(dataFile)
 	alldata2 <- doPartition(alldata, partitionMethod)
-	alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod)
+	alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod, pval = pval)
 	alldata4 <- validation(alldata3, lmethod)
 	
 	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
@@ -475,3 +774,14 @@ mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod)
 }
 
 
+mainPvalPlotFunc <- function(dataFile, partitionMethod, lmethod = "rf") {
+	load(dataFile)
+    alldata2 <- doPartition(alldata, partitionMethod)
+	dataname <- strsplit(dataFile, split = "\\.")[[r]][1]
+    plotname <- paste0(dataname, "_", partitionMethod, ".pdf")
+    ltitle <- paste0(dataname, ", ", partitionMethod)
+    outpath <- lmethod
+    dir.create(file.path(datadir, outpath), showWarnings = FALSE)
+	drawPvals(alldata2, ltitle, plotname, outpath)
+
+}	

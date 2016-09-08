@@ -73,12 +73,12 @@ fMap <- unlist(fVals)
 names(fMap) <- rnames 
 
 
-cdata <- cdata[, !(colnames(cdata) %in% "RB197")]
-MIC <- MIC[!(names(MIC) %in% "RB197")]
+#cdata <- cdata[, !(colnames(cdata) %in% "RB197")]
+#MIC <- MIC[!(names(MIC) %in% "RB197")]
 
-lclass <- lclass[!(names(lclass) %in% "RB197")]
-
-alldata <- list(lclass = lclass, MIC = MIC, MICMid = MICMid, cdata = cdata, species = species, fMap = fMap)
+#lclass <- lclass[!(names(lclass) %in% "RB197")]
+dname <- "AcbMero"
+alldata <- list(lclass = lclass, MIC = MIC, MICMid = MICMid, cdata = cdata, species = species, fMap = fMap, dname = dname)
 
 outpath <- paste0(datadir, '/', outfile)
 save(alldata, file = outpath)
