@@ -12,7 +12,8 @@
 library(rentrez) 
 datadir <- '/home/nirmalya/research/DataDx'
 infile <- 'forNirmalya_KpGent1_norm.txt'
-MICFile <- 'forNirmalya_KpGent1_MICs.txt'
+#MICFile <- 'forNirmalya_KpGent1_MICs.txt'
+MICFile <- 'KpGent1_strain_MIC_table.txt'
 outfile <- 'KpGent.RData'
 miccoundary <- 2
 MICMid <- 2

@@ -8,6 +8,7 @@ library(gridExtra)
 library(FSelector)
 library(Biocomb)
 library(Boruta)
+library(reshape2)
 
 source('FeatureSelect.R')
 
@@ -15,7 +16,12 @@ datadir <- '/home/nirmalya/research/DataDx'
 setwd(datadir)
 
 dataFile <- 'KpMero.RData'
-mainFuncFeatureWise <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
+
+drawProbPlotSpecific(dataFile = "KpMero.RData", partitionMethod = "alternate", featureSelectionMethod = "rfRFE", featureCount = 5, lmethod = "rf") 
+
+
+mainFuncFeatureWise_F(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
+mainFuncFeatureWise(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
 mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "Boruta", lmethod = "rf")
 mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "Boruta", lmethod = "rf")
 

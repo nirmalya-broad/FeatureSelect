@@ -382,7 +382,7 @@ getFeaturesRfRFE <- function (alldata, ltimes = 5) {
 		number = finalCVCount, repeats = 5, returnResamp = "all",  
 		functions = newRF, index = index, verbose = TRUE) 
 		  
-	varSeq <- seq(5, dim(xdata)[2] -1, by = 2)
+	varSeq <- seq(10, dim(xdata)[2] -1, by = 2)
 	
 	#browser()
 	rfRFE <- rfe(x = xdata, y = ydata, sizes = varSeq, metric = "ROC",
@@ -424,6 +424,96 @@ validation <- function (alldata, lmethod, featureCount = 5) {
 	}
 	alldata2 <- c(alldata, list(modT = modT, accuracy = accuracy))
 	return (alldata2)
+
+}
+
+# Validation using full data; use train for training the model
+# and test for prediction
+
+validation_F <- function (alldata, lmethod, featureCount = 5) {
+
+	set.seed(seed2)
+
+	trainC <- alldata$trainC
+	finalCVCount <- getCVCount(trainC)
+    indexT <- createMultiFolds(trainC, k = finalCVCount, times = 5)
+
+    ctrlT <- trainControl(method = "repeatedcv", number = finalCVCount,
+        repeats = 5, returnResamp = "all", savePredictions = "all",
+        classProbs = TRUE, index = indexT)
+
+
+	features <- alldata$features[1:featureCount]
+	cdata <- alldata$cdata
+	xdata1 <- cdata[, names(trainC)]
+    xdata2 <- t(xdata1)
+	trainData <- data.frame(xdata2[, features], trainC)
+	modT <- train( trainC ~ ., data = trainData, method = lmethod, 
+			trControl = ctrlT)
+
+	testC <-  alldata$testC
+	ydata1 <- cdata[, names(testC)]
+	ydata2 <- t(ydata1)
+	testData <- data.frame(ydata2[, features])
+	resClasses <- predict(modT, newdata = testData)
+	resProbs <- predict(modT, newdata = testData, type = "prob")
+	lmat <- confusionMatrix(resClasses, testC)
+	accuracy <- as.numeric(lmat$overall["Accuracy"])
+
+	alldata2 <- c(alldata, list(modT = modT, lmat = lmat, accuracy = accuracy, 
+				resClasses = resClasses, resProbs = resProbs))
+	
+	return (alldata2)
+
+}
+
+
+plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath, 
+						lmethod = "rf", featureCount = 5) {
+
+	alldata2 <- validation_F(alldata, lmethod, featureCount)
+    accuracy <- alldata2$accuracy
+    lmetric <- getMetric_F(alldata2)
+
+
+	resProbs <- alldata2$resProbs
+	labels <- alldata$testC[rownames(resProbs)]
+	predSample <- names(alldata$testC)
+	predMIC <- as.numeric(alldata$MIC[predSample])
+	lgroups1 <- paste0(predSample, "_", predMIC)
+	lgroups <- factor(lgroups1, levels = lgroups1)
+
+	mid_point <- max(alldata$MIC[alldata$lclass == 'S'])
+    facet_var1 <- ifelse (predMIC <=mid_point , c('Sus'), c('Res'))
+	facet_var <- factor(facet_var1, levels = c("Sus", "Res"))
+
+	fMap <- alldata$fMap
+    features <- alldata$features[1:featureCount]
+    fVals1 <- fMap[features]
+    fVals2 <- substr(fVals1, 1, 50)
+    fVals <- paste(as.character(fVals2), collapse = "\n")
+
+	ltitle1 <- paste0("Confidence of resistance\n", ltitle, ", 
+		Accuracy = ", accuracy, "\nDecision score = ", lmetric, "\n", 
+		fVals)
+	
+	probRes <- data.frame(lnames = rownames(resProbs), probs = resProbs[,1], 
+			types = as.character(labels), lgroups = lgroups, 
+			facet_var = facet_var)
+	Palette1 <- c('red','forestgreen')
+	plt <- ggplot(probRes, aes(x = lgroups, y = probs, colour = facet_var)) +
+        geom_point(size = 3) +
+		facet_grid(. ~ facet_var, scales = "free", space = "free") + 
+		scale_colour_manual(values=Palette1) + 
+		theme(axis.text.x = element_text(size=10,angle= 45))  + 
+        xlab("Strain_MIC") + ylab("Probablity of resistance") +
+		ggtitle(ltitle1) +  labs(colour='groups') 
+
+    outpath <- lmethod
+    lplotname <- paste0(ltitle,  ".pdf")
+    lpoltpath = paste0(outpath, "/", lplotname)
+    ggsave(lpoltpath)
+	
 
 }
 
@@ -536,6 +626,42 @@ plotCombinedMetric <- function(alldata, plotname, ltitle, outpath, featureCount 
 
 }
 
+
+getMetric_F <- function(alldata) {
+	
+	testC <- alldata$testC
+	predSample <- alldata$testC
+	resProbs <- alldata$resProbs
+
+	lrnames <- rownames(resProbs)
+
+	predLst <- lapply(lrnames, 
+		function(x, resProbs, testC) {
+			lclass1 <- as.character(testC[x])
+			predVal <- resProbs[x, lclass1]
+		}, resProbs, testC
+	)
+			
+	predObs <- unlist(predLst)
+	predErr <- 1 - predObs
+
+	testMIC <- as.numeric(alldata$MIC[names(testC)])
+	MICMid <- alldata$MICMid
+	exDistToMid <- testMIC / MICMid
+	
+	logDistToMid <- log2(exDistToMid)
+    corrDist <- logDistToMid
+    corrDist[logDistToMid <= 0] <- abs(logDistToMid[logDistToMid <= 0]) + 1
+
+	finalMetricAll <- predErr %*% corrDist
+    lsum <- sum(corrDist)
+    finalMetricAvg <- finalMetricAll / lsum
+	return (finalMetricAvg)	
+	
+}
+
+
+
 getMetric <- function(alldata) {
     modT <- alldata$modT
     testSample <- rownames(modT$trainingData)
@@ -586,7 +712,7 @@ getMetric <- function(alldata) {
 
     # Add one column for the facet_grid
     mid_point <- max(alldata$MIC[alldata$lclass == 'S'])
-    facet_var <- ifelse (pred7$predMIC <=mid_point , c('Sus'), c('Res'))
+    facet_var <- ifelse (pred7$predMIC <= mid_point, c('Sus'), c('Res'))
     pred7$facet_var <- factor(facet_var, levels = c('Sus', 'Res'))
 
     finalMetricAll <- pred7$predErr %*% pred7$corrDist
@@ -597,7 +723,7 @@ getMetric <- function(alldata) {
 
 }
 
-getFeaturesGreedy <- function(alldata, seed.genes, pos.genes, neg.genes, disc_genes,  forwardThresh = 0.01, featureCount = 5) {
+getFeaturesGreedy <- function(alldata, seed.genes, pos.genes, neg.genes, disc_genes, forwardThresh = 0.01, featureCount = 5) {
 
     yes.pos <- intersect(pos.genes, seed.genes)
     if (length(yes.pos) == 0) {
@@ -718,6 +844,66 @@ getInfoFeatureWise <- function(featureCount, alldata, lmethod) {
 
 }
 
+
+getInfoFeatureWise_F <- function(featureCount, alldata, lmethod) {
+    alldata2 <- validation_F(alldata, lmethod, featureCount)
+    accuracy <- alldata2$accuracy
+    lmetric <- getMetric_F(alldata2)
+
+    return (c(accuracy = accuracy, lmetric = lmetric))
+
+}
+
+
+
+drawProbPlotSpecific <- function(dataFile, partitionMethod, featureSelectionMethod, featureCount = 5, lmethod = "rf") {
+
+	load(dataFile)
+    alldata2 <- doPartition(alldata, partitionMethod)
+    alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod,
+                pval = pval)
+	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
+    ltitle <- paste0("FeatureCount_", featureCount, "_", dataname, "_", 
+				partitionMethod, "_", featureSelectionMethod)
+	outpath <- lmethod
+    lplotname <- paste0(ltitle,  ".pdf")
+    lpoltpath = paste0(outpath, "/", lplotname)
+
+	plotCombinedMetric_F(alldata3, lplotname, ltitle, outpath, lmethod, featureCount)
+
+}
+
+mainFuncFeatureWise_F <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf") {
+
+	load(dataFile)
+    alldata2 <- doPartition(alldata, partitionMethod)
+    alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod, 
+				pval = pval)
+
+    featureLen <- length(alldata3$features)
+    res1 <- lapply(2:featureLen, getInfoFeatureWise_F, alldata3, lmethod)
+    res2 <- data.frame(featureCount = 2:featureLen, do.call(rbind, res1))
+    names(res2)[2] <- "Accuracy"
+    names(res2)[3] <- "Decision metric"
+    res3 <- melt(res2, id.vars = 'featureCount')
+
+    dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
+    ltitle <- paste0("Full_AllFeatures_", dataname, "_", partitionMethod, "_", featureSelectionMethod)
+	 plt <- ggplot(res3, aes(x = featureCount, y = value, colour = variable)) +
+        geom_point() + scale_x_continuous(breaks = seq(1, featureLen, 2)) +
+        scale_y_continuous(breaks = seq(0, 1, 0.05)) +
+        xlab("Number of features") + ylab("Accuracy/Decision metric") +
+        ggtitle(ltitle)
+
+    outpath <- lmethod
+    lplotname <- paste0(ltitle,  ".pdf")
+    lpoltpath = paste0(outpath, "/", lplotname)
+    ggsave(lpoltpath)
+
+
+}
+
+
 mainFuncFeatureWise <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf") {
 	load(dataFile)
     alldata2 <- doPartition(alldata, partitionMethod)
@@ -744,23 +930,13 @@ mainFuncFeatureWise <- function(dataFile, partitionMethod, featureSelectionMetho
 	lpoltpath = paste0(outpath, "/", lplotname)
     ggsave(lpoltpath)
 	
-
-	#featureCount <- 4
-	#alldata_2 <- validation(alldata3, lmethod, featureCount)
-	#lmetric <- getMetric(alldata_2)
-	#dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
-    #plotname <- paste0(dataname, "_", partitionMethod, "_", featureSelectionMethod, "_", featureCount,  ".pdf")
-    #ltitle <- paste0(dataname, ", ", partitionMethod, ", ", featureSelectionMethod)
-    #dir.create(file.path(datadir, outpath), showWarnings = FALSE)
-
-    #plotCombinedMetric(alldata_2, plotname, ltitle, outpath, featureCount)
-	
 }
 
 mainFunc <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf", pval = 0.01) {
 	load(dataFile)
 	alldata2 <- doPartition(alldata, partitionMethod)
 	alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod, pval = pval)
+	#alldata4 <- validation_F(alldata3, lmethod, featureCount = 5)
 	alldata4 <- validation(alldata3, lmethod)
 	
 	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
