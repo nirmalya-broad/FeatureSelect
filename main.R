@@ -15,12 +15,18 @@ source('FeatureSelect.R')
 datadir <- '/home/nirmalya/research/DataDx'
 setwd(datadir)
 
-dataFile <- 'KpMero.RData'
+#dataFile <- 'KpMero.RData'
 
-drawProbPlotSpecific(dataFile = "KpMero.RData", partitionMethod = "alternate", featureSelectionMethod = "rfRFE", featureCount = 5, lmethod = "rf") 
+drawProbPlotSpecific(dataFile = "AcbMero.RData", partitionMethod = "alternate", featureSelectionMethod = "rfRFE", featureCount = 5, lmethod = "rf") 
 
 
-mainFuncFeatureWise_F(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
+partitionMethod <- 'alternate'
+featureSelectionMethod <- 'rfRFE'
+
+mainFuncFeatureWise_F(dataFile = 'AcbMero.RData', partitionMethod, featureSelectionMethod, lmethod = "rf")
+mainFuncFeatureWise_F(dataFile = 'KpMero.RData', partitionMethod, featureSelectionMethod, lmethod = "rf")
+mainFuncFeatureWise_F(dataFile = 'KpGent.RData', partitionMethod, featureSelectionMethod, lmethod = "rf")
+
 mainFuncFeatureWise(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
 mainFunc(dataFile, partitionMethod = "alternate", featureSelectionMethod = "Boruta", lmethod = "rf")
 mainFunc(dataFile, partitionMethod = "extreme", featureSelectionMethod = "Boruta", lmethod = "rf")

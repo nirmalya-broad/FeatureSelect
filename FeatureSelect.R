@@ -4,7 +4,7 @@
 seed1 <- 100
 seed2 <- 200
 seed3 <- 300
-source('Sepsis_MC_analysis_functions.R')
+source('/home/nirmalya/research/featureselect/Sepsis_MC_analysis_functions.R')
 
 # Partition the data
 
@@ -468,6 +468,41 @@ validation_F <- function (alldata, lmethod, featureCount = 5) {
 }
 
 
+# validation using full data using five fold cross validation using the features
+# that were selected earlier
+
+validation_FCV <- function() {
+
+	testC <-  alldata$lclass
+
+    set.seed(seed2)
+    finalCVCount <- getCVCount(testC)
+    indexT <- createMultiFolds(testC, k = finalCVCount, times = 5)
+
+    ctrlT <- trainControl(method = "repeatedcv", number = finalCVCount,
+        repeats = 5, returnResamp = "all", savePredictions = "all",
+        classProbs = TRUE, index = indexT)
+
+    features <- alldata$features[1:featureCount]
+    cdata <- alldata$cdata
+    xdata1 <- cdata[, names(testC)]
+    xdata2 <- t(xdata1)
+    testData <- data.frame(xdata2[, features], testC)
+    modT <- train( testC ~ ., data = testData, trControl = ctrlT, method = lmethod)
+    lresults <- modT$results
+    accuracy <- 0
+    if (is.null(modT$bestTune$mtry) == FALSE) {
+        bestMtry <- modT$bestTune$mtry
+        accuracy <- lresults[lresults$mtry == bestMtry, "Accuracy"]
+    } else {
+        accuracy <- lresults[, "Accuracy"]
+    }
+    alldata2 <- c(alldata, list(modT = modT, accuracy = accuracy))
+    return (alldata2)
+
+
+}
+
 plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath, 
 						lmethod = "rf", featureCount = 5) {
 
@@ -505,8 +540,10 @@ plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath,
         geom_point(size = 3) +
 		facet_grid(. ~ facet_var, scales = "free", space = "free") + 
 		scale_colour_manual(values=Palette1) + 
-		theme(axis.text.x = element_text(size=10,angle= 45))  + 
-        xlab("Strain_MIC") + ylab("Probablity of resistance") +
+		#theme(axis.text.x = element_text(size=10,angle= 45))  + 
+		theme(axis.text.x = element_blank(), axis.title.x = element_blank())  + 
+        #xlab("Strain_MIC") + ylab("Probablity of resistance") +
+        ylab("Probablity of resistance") +
 		ggtitle(ltitle1) +  labs(colour='groups') 
 
     outpath <- lmethod
