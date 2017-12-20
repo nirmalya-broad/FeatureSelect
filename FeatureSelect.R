@@ -117,9 +117,9 @@ doPartitionExtreme <- function(alldata) {
 }
 
 
-doFeatureSelection <- function(alldata, fsMethod, pval = 0.01) {
+doFeatureSelection <- function(alldata, fsMethod, pval = 0.01, featureCount) {
 	if (fsMethod == "ReliefF") {
-		alldata2 <- getFeaturesReliefF(alldata)
+		alldata2 <- getFeaturesReliefF(alldata, featureCount = featureCount)
 		return (alldata2)
 	} else if (fsMethod == "rfRFE") {
 		alldata2 <- getFeaturesRfRFE(alldata)
@@ -396,9 +396,14 @@ getFeaturesRfRFE <- function (alldata, ltimes = 5) {
 # This would validate the data. Common for all the datasets, probably would 
 # use random forest
 
-validation <- function (alldata, lmethod, featureCount = 5) {
+validation <- function (alldata, lmethod, featureCount = 5, dataPart = "testC") {
 
-	testC <-  alldata$testC
+    testC <- NULL
+    if (dataPart == "testC") {
+	    testC <-  alldata$testC
+    } else if (dataPart == "trainC") {
+        testC <- alldata$trainC
+    }
 
 	set.seed(seed2)
 	finalCVCount <- getCVCount(testC)
@@ -408,7 +413,14 @@ validation <- function (alldata, lmethod, featureCount = 5) {
 		repeats = 5, returnResamp = "all", savePredictions = "all", 
 		classProbs = TRUE, index = indexT)	
 
-	features <- alldata$features[1:featureCount]
+    featuresE <- alldata$features
+    featuresEL <- length(featuresE)    
+    features <- NULL
+    if (featuresEL < featureCount) {
+        features <- featuresE
+    } else {
+	    features <- alldata$features[1:featureCount]
+    }
 	cdata <- alldata$cdata
 	xdata1 <- cdata[, names(testC)]
     xdata2 <- t(xdata1)
@@ -426,6 +438,9 @@ validation <- function (alldata, lmethod, featureCount = 5) {
 	return (alldata2)
 
 }
+
+
+
 
 # Validation using full data; use train for training the model
 # and test for prediction
@@ -447,6 +462,11 @@ validation_F <- function (alldata, lmethod, featureCount = 5) {
 	cdata <- alldata$cdata
 	xdata1 <- cdata[, names(trainC)]
     xdata2 <- t(xdata1)
+    print("features")
+    print(features)
+    print("colnames start")
+    print(colnames(xdata2))
+    print("colnames end")
 	trainData <- data.frame(xdata2[, features], trainC)
 	modT <- train( trainC ~ ., data = trainData, method = lmethod, 
 			trControl = ctrlT)
@@ -540,8 +560,8 @@ plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath,
         geom_point(size = 3) +
 		facet_grid(. ~ facet_var, scales = "free", space = "free") + 
 		scale_colour_manual(values=Palette1) + 
-		#theme(axis.text.x = element_text(size=10,angle= 45))  + 
-		theme(axis.text.x = element_blank(), axis.title.x = element_blank())  + 
+		theme(axis.text.x = element_text(size=10,angle= 45))  + 
+		#theme(axis.text.x = element_blank(), axis.title.x = element_blank())  + 
         #xlab("Strain_MIC") + ylab("Probablity of resistance") +
         ylab("Probablity of resistance") +
 		ggtitle(ltitle1) +  labs(colour='groups') 
@@ -786,10 +806,10 @@ getMetricSingle <- function(index, all.genes, pos.genes, neg.genes,
 	seed.genes <- all.genes[c(i, j)]
 
     alldata3 <- getFeaturesGreedy(alldata2, seed.genes, pos.genes, neg.genes, disc_genes)
-    alldata4 <- validation(alldata3, lmethod)
+    alldata4 <- validation(alldata3, lmethod, dataPart = "trainC")
     accu <- alldata4$accuracy
     lMetric <- getMetric(alldata4)
-	farr <- c(accu = accu, lMetric = lMetric, i = i, j = j)
+	farr <- c(accu = accu, lMetric = lMetric, i = i, j = j, features = list(alldata4$features))
 	return(farr)
 
 }
@@ -863,7 +883,7 @@ mainFuncGreedy <- function(datadir, dataFile, partitionMethod, lmethod = "rf", a
 		pos.genes, neg.genes, disc_genes, alldata2, lmethod)
 
 	ldf1 <- data.frame(do.call(rbind, res))
-	ldf2 <- ldf1[order(-ldf1$accu, ldf1$lMetric),]
+	ldf2 <- ldf1[order(unlist(ldf1$lMetric), -unlist(ldf1$accu)), ]
 
 	# Now create plot for top ten
 	ldf3 <- ldf2[1:topPlotNum,]
@@ -898,7 +918,7 @@ drawProbPlotSpecific <- function(dataFile, partitionMethod, featureSelectionMeth
 	load(dataFile)
     alldata2 <- doPartition(alldata, partitionMethod)
     alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod,
-                pval = pval)
+                pval = pval, featureCount)
 	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
     ltitle <- paste0("FeatureCount_", featureCount, "_", dataname, "_", 
 				partitionMethod, "_", featureSelectionMethod)
@@ -913,9 +933,10 @@ drawProbPlotSpecific <- function(dataFile, partitionMethod, featureSelectionMeth
 mainFuncFeatureWise_F <- function(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf") {
 
 	load(dataFile)
+    featureCount <- length(rownames(alldata$cdata))
     alldata2 <- doPartition(alldata, partitionMethod)
     alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod, 
-				pval = pval)
+				pval = pval, featureCount = featureCount)
 
     featureLen <- length(alldata3$features)
     res1 <- lapply(2:featureLen, getInfoFeatureWise_F, alldata3, lmethod)
