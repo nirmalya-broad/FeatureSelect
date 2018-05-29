@@ -9,6 +9,7 @@ library(FSelector)
 library(Biocomb)
 library(Boruta)
 library(reshape2)
+library(gurobi)
 
 source('FeatureSelect_new.R')
 
@@ -31,14 +32,14 @@ drawProbPlotSpecific(dataFile, partitionMethod = "alternate", featureSelectionMe
 dataFile <- 'KpGent.RData'
 drawProbPlotSpecific(dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE", featureCount = 5, lmethod = "rf")
 
-dataFile <- 'KpMero.RData'
-mainFuncFeatureWise_FCV(dataFile, partitionMethod, featureSelectionMethod, lmethod)
+#dataFile <- 'KpMero.RData'
+#mainFuncFeatureWise_FCV(dataFile, partitionMethod, featureSelectionMethod, lmethod)
 
-dataFile <- 'AcbMero.RData'
-mainFuncFeatureWise_FCV(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
+#dataFile <- 'AcbMero.RData'
+#mainFuncFeatureWise_FCV(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
 
-dataFile <- 'KpGent.RData'
-mainFuncFeatureWise_FCV(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
+#dataFile <- 'KpGent.RData'
+#mainFuncFeatureWise_FCV(dataFile, partitionMethod, featureSelectionMethod, lmethod = "rf")
 
 
 

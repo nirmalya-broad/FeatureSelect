@@ -738,6 +738,7 @@ forwardSearchWeighted_single <- function(discovery.genes, pos.genes, neg.genes,
 	if (llen == 5) {
 		break
 	}
+    cat("BestAUC: ", bestAUC, "\n")
   }
 
   return(list(yes.pos, yes.neg))

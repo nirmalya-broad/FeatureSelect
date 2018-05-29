@@ -357,8 +357,46 @@ validation_F <- function (alldata, lmethod, featureCount = 5) {
 
 }
 
+
+getDecisionPos <- function(R_probs, labels, C) {
+
+    model <- list()
+    labels_len <- length(labels)
+    Q_dim <- 2 + labels_len
+    Q <- matrix(0, Q_dim, Q_dim)
+    Q[1,1] <- 1
+
+    slack_mat <- diag(labels_len)
+    ic_col <- rep(1, labels_len)
+    A_part <- cbind(R_probs, ic_col)
+    mult_var <- rep(0, labels_len)
+    mult_var[labels == 'S'] <- -1
+    mult_var[labels == 'R'] <- 1
+    A_part2 <- mult_var * A_part
+    A <- cbind(A_part2, slack_mat)
+
+    rhs <- rep(1, labels_len)
+    sense <- rep(">=", labels_len)
+
+    lb <- c(rep(-Inf, 2), rep(0, labels_len))
+
+    obj <- c(rep(0,2), rep(C, labels_len))
+
+    model$Q <- Q
+    model$A <- A
+    model$obj <- obj
+    model$lb <- lb
+    model$sense <- sense
+    model$rhs <- rhs
+
+    res <- gurobi(model)
+    final_val <- (-res$x[2]/res$x[1])
+    return (final_val)
+
+}
+
 plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath,
-                        lmethod = "rf", featureCount = 5) {
+                        lmethod = "rf", featureCount = 5, C = 100) {
 
     alldata2 <- validation_F(alldata, lmethod, featureCount)
     accuracy <- alldata2$accuracy
@@ -382,19 +420,27 @@ plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath,
     fVals2 <- substr(fVals1, 1, 50)
     fVals <- paste(as.character(fVals2), collapse = "\n")
 
-    ltitle1 <- paste0("Confidence of resistance\n", ltitle, ",
-        Accuracy = ", accuracy, "\nDecision score = ", lmetric, "\n",
-        fVals)
 
     probRes <- data.frame(lnames = rownames(resProbs), probs = resProbs[,1],
             types = as.character(labels), lgroups = lgroups,
             facet_var = facet_var)
     Palette1 <- c('red','forestgreen')
+
+    # Lets get the line
+
+    R_probs <- resProbs[,1]
+    final_pos <- getDecisionPos(R_probs, labels, C) 
+
+    ltitle1 <- paste0("Confidence of resistance\n", ltitle, ",
+        Accuracy = ", accuracy, "\nDecision score = ", lmetric, 
+        "\nDecision position = ", final_pos, "\n",
+        fVals)
     plt <- ggplot(probRes, aes(x = lgroups, y = probs, colour = facet_var)) +
         geom_point(size = 3) +
         facet_grid(. ~ facet_var, scales = "free", space = "free") +
         scale_colour_manual(values=Palette1) +
         theme(axis.text.x = element_text(size=10,angle= 45))  +
+        geom_hline(yintercept = final_pos) +
         #theme(axis.text.x = element_blank(), axis.title.x = element_blank())  +
         xlab("Strain_MIC") + ylab("Probablity of resistance") +
         #ylab("Probablity of resistance") +
@@ -404,6 +450,7 @@ plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath,
     lplotname <- paste0(ltitle,  ".pdf")
     lpoltpath = paste0(outpath, "/", lplotname)
     ggsave(lpoltpath)
+
 
 
 }

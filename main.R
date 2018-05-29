@@ -15,15 +15,21 @@ source('FeatureSelect.R')
 datadir <- '/home/nirmalya/research/DataDx'
 setwd(datadir)
 
-l_dataFile <- 'KpCip3_allRespNormFold_runs1-2-4.RData'
+#l_dataFile <- 'KpCip3_allRespNormFold_runs1-2-4.RData'
+l_dataFile <- 'KpMero3_2_fold.RData'
+#l_dataFile <- 'AcbMero.RData'
 
 lmethod = "rf"
 fnum = 10
 
-drawProbPlotSpecific(dataFile = l_dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE", featureCount = fnum, lmethod = "rf") 
-drawProbPlotSpecific(dataFile = l_dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF", featureCount = fnum, lmethod = "rf") 
-drawProbPlotSpecific(dataFile = l_dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE", featureCount = fnum, lmethod = "rf") 
-drawProbPlotSpecific(dataFile = l_dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF", featureCount = fnum, lmethod = "rf") 
+
+#get_features_on_all_data(dataFile = l_dataFile, featureSelectionMethod = "rfRFE", featureCount = fnum)
+get_features_on_all_data(dataFile = l_dataFile, featureSelectionMethod = "ReliefF", featureCount = fnum)
+
+#drawProbPlotSpecific(dataFile = l_dataFile, partitionMethod = "alternate", featureSelectionMethod = "rfRFE", featureCount = fnum, lmethod = "rf") 
+#drawProbPlotSpecific(dataFile = l_dataFile, partitionMethod = "alternate", featureSelectionMethod = "ReliefF", featureCount = fnum, lmethod = "rf") 
+#drawProbPlotSpecific(dataFile = l_dataFile, partitionMethod = "extreme", featureSelectionMethod = "rfRFE", featureCount = fnum, lmethod = "rf") 
+#drawProbPlotSpecific(dataFile = l_dataFile, partitionMethod = "extreme", featureSelectionMethod = "ReliefF", featureCount = fnum, lmethod = "rf") 
 
 #mainFuncFeatureWise_F(dataFile = 'KpCipII.RData', partitionMethod = "alternate", featureSelectionMethod = "rfRFE", lmethod = "rf")
 #mainFuncFeatureWise_F(dataFile = 'KpCipII.RData', partitionMethod = "alternate", featureSelectionMethod = "ReliefF", lmethod = "rf")

@@ -18,6 +18,12 @@ doPartition <- function (alldata, type) {
 	}
 }
 
+
+getAllSamplesForFS <- function(alldata) {
+    trainC <- alldata$lclass
+    alldata2 <- c(alldata, list(trainC = trainC))
+    return (alldata2)
+}
 # Use the odd sampels for training and even one for testing/
 # validation.
 
@@ -912,6 +918,24 @@ getInfoFeatureWise_F <- function(featureCount, alldata, lmethod) {
 }
 
 
+get_features_on_all_data <- function(dataFile, featureSelectionMethod, featureCount = 5) {
+    load(dataFile)
+    alldata2 <- getAllSamplesForFS(alldata)
+   
+    pval <- 0.05
+    alldata3 <- doFeatureSelection(alldata2, featureSelectionMethod,
+                pval = pval, featureCount)
+    fMap <- alldata$fMap
+    features <- alldata3$features[1:featureCount]
+    fVals1 <- fMap[features]
+    fVals2 <- substr(fVals1, 1, 50)
+    fVals <- paste(as.character(fVals2), collapse = "\n")
+    method_str <- paste0("Feature selection method: ", featureSelectionMethod)
+    print(method_str)
+    print("--------------------")
+    print(as.character(fVals2))
+
+}
 
 drawProbPlotSpecific <- function(dataFile, partitionMethod, featureSelectionMethod, featureCount = 5, lmethod = "rf") {
 
