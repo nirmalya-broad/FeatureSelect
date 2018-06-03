@@ -918,7 +918,10 @@ getInfoFeatureWise_F <- function(featureCount, alldata, lmethod) {
 }
 
 
+
 get_features_on_all_data <- function(dataFile, featureSelectionMethod, featureCount = 5) {
+    set.seed(seed2)
+
     load(dataFile)
     alldata2 <- getAllSamplesForFS(alldata)
    
@@ -934,6 +937,32 @@ get_features_on_all_data <- function(dataFile, featureSelectionMethod, featureCo
     print(method_str)
     print("--------------------")
     print(as.character(fVals2))
+
+
+    # test_part
+
+    # Load the file provided by roby and replace the name of the probes with the old ones
+    test_file_name <- '/home/nirmalya/research/DataDx/KpMero4_v1_allRespNormFold.csv'
+    test_data1 <- read.csv(test_file_name, header = TRUE, row.names = 1, sep = ",", stringsAsFactors = FALSE)
+    train_data1 <- alldata3$cdata[alldata3$features, ]
+    trainC <- alldata3$trainC
+    train_data <- data.frame(t(train_data1), trainC)
+
+    finalCVCount <- getCVCount(trainC)
+    indexT <- createMultiFolds(trainC, k = finalCVCount, times = 5)
+
+    ctrlT <- trainControl(method = "repeatedcv", number = finalCVCount,
+        repeats = 5, returnResamp = "all", savePredictions = "all",
+        classProbs = TRUE, index = indexT)
+
+    modT <- train( trainC ~ ., data = train_data, method = "rf",
+            trControl = ctrlT)
+
+
+    test_data <- test_data1
+    rownames(test_data) <- rownames(train_data1)
+    pred_raw = predict(modT, newdata = t(test_data), type = "prob")
+    write.table(pred_raw, "KpMero4_results.csv", sep = "\t")
 
 }
 
