@@ -445,7 +445,57 @@ validation <- function (alldata, lmethod, featureCount = 5, dataPart = "testC") 
 
 }
 
+validation_Random <- function(dataFile, outfile, partitionMethod = "alternate", lmethod = "rf", repeat_count = 100) {
+    set.seed(seed2)
+    load(dataFile)
+    alldata <- doPartition(alldata, partitionMethod)
+    
+    trainC <- alldata$trainC
+    testC <-  alldata$testC
 
+    finalCVCount <- getCVCount(trainC)
+    indexT <- createMultiFolds(trainC, k = finalCVCount, times = 5)
+
+    ctrlT <- trainControl(method = "repeatedcv", number = finalCVCount,
+        repeats = 5, returnResamp = "all", savePredictions = "all",
+        classProbs = TRUE, index = indexT)
+
+    cdata <- alldata$cdata
+    all_probes <- rownames(cdata)
+    sample_size <- 10
+
+    xdata1 <- cdata[, names(trainC)]
+    xdata2 <- t(xdata1)
+
+    ydata1 <- cdata[, names(testC)]
+    ydata2 <- t(ydata1)
+
+    # Create a data frame with repeat_count rows and two cols
+    mydf <- data.frame(matrix(, nrow = repeat_count, ncol = 2))
+    colnames(mydf) <- c("accuracy", "probes")
+    accuracy_arr <- c()
+    for (j in 1:repeat_count) {
+        lfeatures <- sample(all_probes, sample_size)
+
+        trainData <- data.frame(xdata2[, lfeatures], trainC)
+		modT <- train( trainC ~ ., data = trainData, method = lmethod,
+				trControl = ctrlT)
+
+		testData <- data.frame(ydata2[, lfeatures])
+		resClasses <- predict(modT, newdata = testData)
+		resProbs <- predict(modT, newdata = testData, type = "prob")
+		lmat <- confusionMatrix(resClasses, testC)
+		accuracy <- as.numeric(lmat$overall["Accuracy"])
+        accuracy_arr <- c(accuracy_arr, accuracy)
+        mydf[j, "accuracy"] <- accuracy
+        lprobes <- paste0(lfeatures, collapse = ";")
+        mydf[j, "probes"] <- lprobes 
+        print(j)
+    }
+
+    #print(accuracy_arr)
+    write.table(mydf, outfile, row.names = FALSE, sep = "\t")
+}
 
 
 # Validation using full data; use train for training the model
