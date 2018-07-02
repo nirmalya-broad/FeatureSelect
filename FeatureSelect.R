@@ -579,6 +579,24 @@ validation_FCV <- function() {
 
 }
 
+refine_probe_name <- function(probe_str, dname) {
+
+    parts <- strsplit(probe_str, split = ":")
+    part1 <- parts[[1]][1]
+    part2 <- parts[[1]][2]
+
+    probe_small <- 'NA'
+    if (startsWith(dname, "KpMero")) {
+        probe_small <- gsub(".*_(KPN_\\d+)_.*", "\\1", part1)   
+    } else if (startsWith(dname, "KpCip")) {
+        probe_small <- gsub(".*_(KPHS_\\d+)_.*", "\\1", part1)
+    } else {
+        probe_small <- part1
+    }
+    total_probe <- paste0(probe_small, ":", part2)
+    return (total_probe)
+}
+
 plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath, 
 						lmethod = "rf", featureCount = 5) {
 
@@ -601,17 +619,23 @@ plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath,
 	fMap <- alldata$fMap
     features <- alldata$features[1:featureCount]
     fVals1 <- fMap[features]
-    fVals2 <- substr(fVals1, 1, 50)
+    fVals1_1 <- do.call(c, lapply(fVals1, refine_probe_name, alldata$dname))
+    fVals2 <- substr(fVals1_1, 1, 50)
     fVals <- paste(as.character(fVals2), collapse = "\n")
 
-	ltitle1 <- paste0("Confidence of resistance\n", ltitle, ", 
-		Accuracy = ", accuracy, "\nDecision score = ", lmetric, "\n", 
+	#ltitle1 <- paste0("Confidence of resistance\n", ltitle, ", 
+	#	Accuracy = ", accuracy, "\nDecision score = ", lmetric, "\n", 
+	#	fVals)
+
+    accuracy_f <- formatC(accuracy, digits = 3)	
+    lmetric_f <- formatC(lmetric, digits = 3)
+	ltitle1 <- paste0("Accuracy = ", accuracy_f, "\nDecision score = ", lmetric_f, "\n", 
 		fVals)
-	
+
 	probRes <- data.frame(lnames = rownames(resProbs), probs = resProbs[,1], 
 			types = as.character(labels), lgroups = lgroups, 
 			facet_var = facet_var)
-	Palette1 <- c('red','forestgreen')
+	Palette1 <- c('forestgreen', 'red')
 	plt <- ggplot(probRes, aes(x = lgroups, y = probs, colour = facet_var)) +
         geom_point(size = 3) +
 		facet_grid(. ~ facet_var, scales = "free", space = "free") + 
@@ -619,8 +643,8 @@ plotCombinedMetric_F <- function(alldata, plotname, ltitle, outpath,
 		theme(axis.text.x = element_text(size=10,angle= 45))  + 
 		#theme(axis.text.x = element_blank(), axis.title.x = element_blank())  + 
         #xlab("Strain_MIC") + ylab("Probablity of resistance") +
-        ylab("Probablity of resistance") +
-		ggtitle(ltitle1) +  labs(colour='groups') 
+        ylab("Probablity of resistance") + xlab("Sample_MIC") +
+		ggtitle(ltitle1) +  labs(colour='Strain\nclasses') 
 
     outpath <- lmethod
     lplotname <- paste0(ltitle,  ".pdf")
@@ -1025,6 +1049,7 @@ drawProbPlotSpecific <- function(dataFile, partitionMethod, featureSelectionMeth
 	dataname <- strsplit(dataFile, split = "\\.")[[1]][1]
     ltitle <- paste0("FeatureCount_", featureCount, "_", dataname, "_", 
 				partitionMethod, "_", featureSelectionMethod)
+    #ltitle <- ''
 	outpath <- lmethod
     lplotname <- paste0(ltitle,  ".pdf")
     lpoltpath = paste0(outpath, "/", lplotname)
